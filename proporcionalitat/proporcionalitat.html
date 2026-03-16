@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratori de Proporcionalitat ESO</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { background-color: #f8fafc; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICONS ---
+        const Icon = ({ path, size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d={path} />
+            </svg>
+        );
+
+        const icons = {
+            scale: "M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z M7 21h10 M12 3v18 M6 21v-2 M18 21v-2",
+            arrowRight: "M5 12h14 M12 5l7 7-7 7",
+            refresh: "M23 4v6h-6 M1 20v-6h6",
+            calculator: "M16 16h.01 M12 16h.01 M8 16h.01 M16 12h.01 M12 12h.01 M8 12h.01 M16 8h.01 M12 8h.01 M8 8h.01 M4 20h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z",
+            chart: "M3 3v18h18 M18 17V9 M13 17V5 M8 17v-3",
+            layers: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+        };
+
+        // --- CONSTANTS ---
+        const CONTEXTS = {
+            direct: [
+                { id: 'generic', name: 'Genèric (y = k·x)', labelX: 'X', labelY: 'Y', unitX: '', unitY: '' },
+                { id: 'shopping', name: 'Compra (Preu vs Pes)', labelX: 'Pes (kg)', labelY: 'Preu (€)', unitX: 'kg', unitY: '€' },
+                { id: 'velocity', name: 'Moviment (Espai vs Temps)', labelX: 'Temps (h)', labelY: 'Distància (km)', unitX: 'h', unitY: 'km' },
+                { id: 'recipes', name: 'Cuina (Farina vs Persones)', labelX: 'Persones', labelY: 'Farina (g)', unitX: 'pers', unitY: 'g' },
+            ],
+            inverse: [
+                { id: 'generic', name: 'Genèric (y = k/x)', labelX: 'X', labelY: 'Y', unitX: '', unitY: '' },
+                { id: 'workers', name: 'Obra (Obrers vs Temps)', labelX: 'Obrers', labelY: 'Temps (dies)', unitX: 'obr', unitY: 'dies' },
+                { id: 'speed', name: 'Viatge (Velocitat vs Temps)', labelX: 'Velocitat (km/h)', labelY: 'Temps (h)', unitX: 'km/h', unitY: 'h' },
+                { id: 'rect', name: 'Àrea (Base vs Alçada)', labelX: 'Base (cm)', labelY: 'Alçada (cm)', unitX: 'cm', unitY: 'cm' },
+            ]
+        };
+
+        function App() {
+            const [view, setView] = useState('simple'); 
+            
+            // --- SIMPLE STATE ---
+            const [mode, setMode] = useState('direct');
+            const [k, setK] = useState(2);
+            const [contextId, setContextId] = useState('generic');
+            const [hoverPoint, setHoverPoint] = useState(null);
+            const [r3, setR3] = useState({ a: 1, b: 2, c: 3 });
+
+            // --- COMPOUND STATE ---
+            const [comp, setComp] = useState({
+                m1: { name: 'Obrers', v1: 4, v2: 6, type: 'inverse' },
+                m2: { name: 'Hores/Dia', v1: 8, v2: 8, type: 'inverse' },
+                target: { name: 'Dies', v1: 10 }
+            });
+
+            const width = 800;
+            const height = 600;
+            const xMax = 10;
+            const yMax = mode === 'direct' ? k * xMax : (k > 20 ? k : 20);
+
+            const currentContext = CONTEXTS[mode].find(c => c.id === contextId) || CONTEXTS[mode][0];
+
+            useEffect(() => {
+                setContextId('generic');
+                setK(mode === 'direct' ? 2 : 12);
+            }, [mode]);
+
+            // --- MATH HELPERS ---
+            const calculateY = (x) => {
+                if (mode === 'direct') return k * x;
+                if (mode === 'inverse') return x === 0 ? null : k / x;
+                return 0;
+            };
+
+            const calculateRuleOfThreeSimple = () => {
+                const { a, b, c } = r3;
+                if (mode === 'direct') return (a === 0) ? 0 : (b * c) / a;
+                else return (c === 0) ? 0 : (a * b) / c;
+            };
+
+            const calculateCompound = () => {
+                let ratio1 = (comp.m1.type === 'direct') ? (comp.m1.v2 / comp.m1.v1) : (comp.m1.v1 / comp.m1.v2);
+                let ratio2 = (comp.m2.type === 'direct') ? (comp.m2.v2 / comp.m2.v1) : (comp.m2.v1 / comp.m2.v2);
+                return comp.target.v1 * ratio1 * ratio2;
+            };
+
+            // --- GRAPH DRAWING ---
+            const toSvgX = (x) => (x / xMax) * width;
+            const toSvgY = (y) => height - (y / yMax) * height;
+            
+            const generatePath = () => {
+                let d = "";
+                if (mode === 'direct') {
+                    d = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(xMax)} ${toSvgY(k * xMax)}`;
+                } else {
+                    let moving = false;
+                    for (let x = 0.1; x <= xMax; x += 0.1) {
+                        const y = k / x;
+                        if (y > yMax * 2) continue;
+                        const sx = toSvgX(x);
+                        const sy = toSvgY(y);
+                        if (!moving) { d += `M ${sx} ${sy}`; moving = true; }
+                        else { d += ` L ${sx} ${sy}`; }
+                    }
+                }
+                return d;
+            };
+
+            const handleMouseMove = (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const scaleX = width / rect.width;
+                const xVal = (e.clientX - rect.left) * scaleX * (xMax / width);
+                const clampedX = Math.max(0, Math.min(xMax, xVal));
+                let finalX = clampedX;
+                if (Math.abs(finalX - Math.round(finalX)) < 0.1) finalX = Math.round(finalX);
+                const yVal = calculateY(finalX);
+                setHoverPoint({ x: finalX, y: yVal, svgX: toSvgX(finalX), svgY: toSvgY(yVal) });
+            };
+
+            return (
+                <div className="min-h-screen font-sans text-slate-900 bg-slate-50 pb-10 flex flex-col">
+                    
+                    {/* HEADER */}
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm flex-none">
+                        <div className="w-[98%] mx-auto px-4 py-3">
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-indigo-600 p-2 rounded-lg text-white">
+                                        <Icon path={icons.scale} size={24} />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-xl font-bold text-slate-800 tracking-tight">Laboratori de Proporcionalitat</h1>
+                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Matemàtiques ESO</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                    <button onClick={() => setView('simple')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${view === 'simple' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-100' : 'text-slate-500 hover:text-slate-700'}`}>
+                                        <Icon path={icons.chart} size={16} /> Simple
+                                    </button>
+                                    <button onClick={() => setView('compound')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${view === 'compound' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-teal-100' : 'text-slate-500 hover:text-slate-700'}`}>
+                                        <Icon path={icons.layers} size={16} /> Composta
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* MAIN CONTENT AREA */}
+                    <div className="flex-1 w-[98%] mx-auto mt-4">
+
+                        {/* --- VIEW: SIMPLE --- */}
+                        {view === 'simple' && (
+                            <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full animate-in fade-in duration-300">
+                                
+                                {/* LEFT: Controls (Span 3) */}
+                                <div className="lg:col-span-3 flex flex-col gap-4 h-full">
+                                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex-none">
+                                        <div className="flex gap-2 mb-6">
+                                            <button onClick={() => setMode('direct')} className={`flex-1 py-3 text-sm font-bold uppercase rounded border transition-colors ${mode==='direct' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}>Directa</button>
+                                            <button onClick={() => setMode('inverse')} className={`flex-1 py-3 text-sm font-bold uppercase rounded border transition-colors ${mode==='inverse' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}>Inversa</button>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Situació</label>
+                                            <select value={contextId} onChange={(e) => setContextId(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 outline-none focus:border-indigo-500">
+                                                {CONTEXTS[mode].map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div className="mb-2">
+                                            <label className="flex justify-between text-xs font-bold text-slate-400 uppercase mb-3">
+                                                <span>Constant k</span>
+                                                <span className="text-slate-800 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-base">{k.toFixed(1)}</span>
+                                            </label>
+                                            <input type="range" min={mode === 'direct' ? "0.5" : "1"} max={mode === 'direct' ? "5" : "50"} step="0.1" value={k} onChange={(e) => setK(parseFloat(e.target.value))} className={`w-full ${mode === 'direct' ? 'text-indigo-600' : 'text-orange-600'}`}/>
+                                        </div>
+                                    </div>
+
+                                    {/* Rule of 3 Calc */}
+                                    <div className={`rounded-xl shadow-sm border overflow-hidden flex-1 flex flex-col ${mode==='direct' ? 'border-indigo-100 bg-indigo-50/50' : 'border-orange-100 bg-orange-50/50'}`}>
+                                        <div className={`px-4 py-3 border-b flex items-center gap-2 ${mode==='direct' ? 'border-indigo-100 bg-indigo-100/50 text-indigo-800' : 'border-orange-100 bg-orange-100/50 text-orange-800'}`}>
+                                            <Icon path={icons.calculator} size={18} />
+                                            <h3 className="text-sm font-bold">Regla de Tres Simple</h3>
+                                        </div>
+                                        <div className="p-5 flex-1 flex flex-col justify-center">
+                                            <div className="grid grid-cols-[1fr,auto,1fr] gap-3 items-center mb-6">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] uppercase font-bold text-slate-400 block text-center">{currentContext.labelX}</label>
+                                                    <input type="number" value={r3.a} onChange={e => setR3({...r3, a: parseFloat(e.target.value)})} className="w-full p-3 border border-white/60 rounded text-center text-lg font-mono shadow-sm focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                                </div>
+                                                <Icon path={icons.arrowRight} className="text-slate-400 mt-5" />
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] uppercase font-bold text-slate-400 block text-center">{currentContext.labelY}</label>
+                                                    <input type="number" value={r3.b} onChange={e => setR3({...r3, b: parseFloat(e.target.value)})} className="w-full p-3 border border-white/60 rounded text-center text-lg font-mono shadow-sm focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <input type="number" value={r3.c} onChange={e => setR3({...r3, c: parseFloat(e.target.value)})} className="w-full p-3 border border-white/60 rounded text-center text-lg font-mono shadow-sm bg-white/50 focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                                </div>
+                                                <Icon path={icons.arrowRight} className="text-slate-400" />
+                                                <div className="relative">
+                                                    <div className={`w-full p-3 border rounded text-center text-xl font-bold font-mono shadow-md ${mode==='direct' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-orange-600 text-white border-orange-600'}`}>
+                                                        {calculateRuleOfThreeSimple().toFixed(2)}
+                                                    </div>
+                                                    <span className={`absolute -top-3 -right-3 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm ${mode==='direct' ? 'bg-indigo-400' : 'bg-orange-400'}`}>x</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-slate-500 text-center font-mono bg-white/60 p-3 rounded border border-white/60">
+                                                {mode === 'direct' ? `x = (${r3.b} · ${r3.c}) / ${r3.a}` : `x = (${r3.a} · ${r3.b}) / ${r3.c}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* CENTER: Graph (Span 6) - Increased Height */}
+                                <div className="lg:col-span-6 h-full">
+                                    <div className="bg-white rounded-xl shadow-lg border border-slate-200 h-[70vh] min-h-[500px] flex flex-col relative group overflow-hidden">
+                                        <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur px-4 py-2 rounded-full border border-slate-200 text-sm font-mono text-slate-600 shadow-sm pointer-events-none">
+                                            {mode === 'direct' ? `y / x = ${k}` : `x · y = ${k}`}
+                                        </div>
+                                        <div className="relative flex-1 cursor-crosshair" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverPoint(null)}>
+                                            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full h-full block">
+                                                <defs>
+                                                    <pattern id="grid" width={width/10} height={height/10} patternUnits="userSpaceOnUse">
+                                                        <path d={`M ${width/10} 0 L 0 0 0 ${height/10}`} fill="none" stroke="#e2e8f0" strokeWidth="2"/>
+                                                    </pattern>
+                                                </defs>
+                                                <rect width="100%" height="100%" fill="url(#grid)" />
+                                                <line x1="0" y1={toSvgY(0)} x2={width} y2={toSvgY(0)} stroke="#334155" strokeWidth="2" />
+                                                <line x1={toSvgX(0)} y1="0" x2={toSvgX(0)} y2={height} stroke="#334155" strokeWidth="2" />
+                                                <path d={generatePath()} fill="none" stroke={mode === 'direct' ? '#4f46e5' : '#ea580c'} strokeWidth="5" strokeLinecap="round"/>
+                                                {hoverPoint && (
+                                                    <g>
+                                                        <line x1={hoverPoint.svgX} y1={toSvgY(0)} x2={hoverPoint.svgX} y2={hoverPoint.svgY} stroke="#94a3b8" strokeDasharray="6" strokeWidth="2"/>
+                                                        <line x1={toSvgX(0)} y1={hoverPoint.svgY} x2={hoverPoint.svgX} y2={hoverPoint.svgY} stroke="#94a3b8" strokeDasharray="6" strokeWidth="2"/>
+                                                        <circle cx={hoverPoint.svgX} cy={hoverPoint.svgY} r="8" fill="white" stroke={mode === 'direct' ? '#4f46e5' : '#ea580c'} strokeWidth="4" />
+                                                    </g>
+                                                )}
+                                            </svg>
+                                            {hoverPoint && (
+                                                <div className="absolute bg-slate-800 text-white text-sm px-4 py-3 rounded-lg shadow-xl pointer-events-none transform -translate-x-1/2 -translate-y-full mb-4 z-20" style={{ left: hoverPoint.svgX, top: hoverPoint.svgY }}>
+                                                    <div className="font-bold mb-1 border-b border-slate-600 pb-1">{currentContext.name}</div>
+                                                    <div className="grid grid-cols-2 gap-x-4 text-xs mt-1">
+                                                        <span className="opacity-70">{currentContext.labelX}:</span><span className="font-mono text-right font-bold text-yellow-300">{hoverPoint.x.toFixed(1)} {currentContext.unitX}</span>
+                                                        <span className="opacity-70">{currentContext.labelY}:</span><span className="font-mono text-right font-bold text-yellow-300">{hoverPoint.y.toFixed(2)} {currentContext.unitY}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="absolute bottom-3 right-5 text-sm font-bold text-slate-500 uppercase tracking-wider bg-white/80 px-2 rounded">{currentContext.labelX}</div>
+                                            <div className="absolute top-5 left-5 text-sm font-bold text-slate-500 uppercase tracking-wider bg-white/80 px-2 rounded">{currentContext.labelY}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* RIGHT: Table (Span 3) */}
+                                <div className="lg:col-span-3 h-full">
+                                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col min-h-[500px]">
+                                        <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex items-center justify-between flex-none">
+                                            <div className="flex items-center gap-2"><Icon path={icons.chart} size={18} className="text-slate-500" /><h3 className="text-sm font-bold text-slate-700">Taula de Valors</h3></div>
+                                            <div className="text-xs font-mono text-slate-500 font-bold bg-white px-2 py-1 rounded border">k = {k.toFixed(1)}</div>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+                                            <table className="w-full text-sm">
+                                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 border-b border-slate-200">
+                                                    <tr><th className="py-3 text-left pl-4 font-bold">{currentContext.labelX}</th><th className="py-3 text-right pr-4 font-bold">{currentContext.labelY}</th><th className="py-3 text-right pr-4 text-[10px] opacity-60">{mode === 'direct' ? 'y/x' : 'x·y'}</th></tr>
+                                                </thead>
+                                                <tbody className="font-mono text-slate-600 divide-y divide-slate-100">
+                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(x => {
+                                                        const y = calculateY(x);
+                                                        return <tr key={x} className="hover:bg-indigo-50/30 transition-colors"><td className="py-3 pl-4 font-bold">{x}</td><td className={`py-3 text-right pr-4 font-bold ${mode === 'direct' ? 'text-indigo-600' : 'text-orange-600'}`}>{y ? y.toFixed(2) : '-'}</td><td className="py-3 text-right pr-4 text-slate-400 text-xs">{k.toFixed(1)}</td></tr>;
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </main>
+                        )}
+
+                        {/* --- VIEW: COMPOUND --- */}
+                        {view === 'compound' && (
+                            <main className="max-w-7xl mx-auto p-4 animate-in fade-in duration-300">
+                                <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                                    <div className="bg-teal-600 px-8 py-5 text-white flex justify-between items-center">
+                                        <div>
+                                            <h2 className="text-2xl font-bold">Calculadora de Proporcionalitat Composta</h2>
+                                            <p className="text-teal-100 text-sm opacity-90 mt-1">Resol problemes amb 3 variables pas a pas</p>
+                                        </div>
+                                        <div className="bg-teal-500/30 p-3 rounded-xl backdrop-blur-sm">
+                                            <Icon path={icons.layers} size={32} />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-8 lg:p-12 grid grid-cols-1 lg:grid-cols-3 gap-12">
+                                        
+                                        {/* INPUT COLUMN */}
+                                        <div className="lg:col-span-2 space-y-8">
+                                            
+                                            {/* Magnitude 1 */}
+                                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 relative group transition-all hover:shadow-md hover:border-teal-200">
+                                                <div className="absolute -left-4 top-1/2 -translate-y-1/2 bg-teal-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-white">1</div>
+                                                <div className="flex justify-between mb-4">
+                                                    <input type="text" value={comp.m1.name} onChange={e => setComp({...comp, m1: {...comp.m1, name: e.target.value}})} className="bg-transparent font-bold text-lg text-slate-700 outline-none border-b-2 border-dashed border-slate-300 focus:border-teal-500 w-1/2 transition-colors" />
+                                                    <select 
+                                                        value={comp.m1.type} 
+                                                        onChange={e => setComp({...comp, m1: {...comp.m1, type: e.target.value}})}
+                                                        className={`text-sm font-bold uppercase py-1.5 px-3 rounded-lg border-2 outline-none cursor-pointer ${comp.m1.type === 'direct' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-300' : 'bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-300'}`}
+                                                    >
+                                                        <option value="direct">Directa</option>
+                                                        <option value="inverse">Inversa</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-slate-400 uppercase font-bold mb-1.5">Cas 1 (Conegut)</div>
+                                                        <input type="number" value={comp.m1.v1} onChange={e => setComp({...comp, m1: {...comp.m1, v1: parseFloat(e.target.value)}})} className="w-full p-3 border-2 border-white rounded-xl text-center font-mono text-lg shadow-sm focus:border-teal-400 outline-none transition-all" />
+                                                    </div>
+                                                    <Icon path={icons.arrowRight} className="text-slate-300 mt-5" size={24} />
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-slate-400 uppercase font-bold mb-1.5">Cas 2 (Problema)</div>
+                                                        <input type="number" value={comp.m1.v2} onChange={e => setComp({...comp, m1: {...comp.m1, v2: parseFloat(e.target.value)}})} className="w-full p-3 border-2 border-white rounded-xl text-center font-mono text-lg shadow-sm focus:border-teal-400 outline-none transition-all" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Magnitude 2 */}
+                                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 relative group transition-all hover:shadow-md hover:border-teal-200">
+                                                <div className="absolute -left-4 top-1/2 -translate-y-1/2 bg-teal-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-white">2</div>
+                                                <div className="flex justify-between mb-4">
+                                                    <input type="text" value={comp.m2.name} onChange={e => setComp({...comp, m2: {...comp.m2, name: e.target.value}})} className="bg-transparent font-bold text-lg text-slate-700 outline-none border-b-2 border-dashed border-slate-300 focus:border-teal-500 w-1/2 transition-colors" />
+                                                    <select 
+                                                        value={comp.m2.type} 
+                                                        onChange={e => setComp({...comp, m2: {...comp.m2, type: e.target.value}})}
+                                                        className={`text-sm font-bold uppercase py-1.5 px-3 rounded-lg border-2 outline-none cursor-pointer ${comp.m2.type === 'direct' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-300' : 'bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-300'}`}
+                                                    >
+                                                        <option value="direct">Directa</option>
+                                                        <option value="inverse">Inversa</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-slate-400 uppercase font-bold mb-1.5">Cas 1 (Conegut)</div>
+                                                        <input type="number" value={comp.m2.v1} onChange={e => setComp({...comp, m2: {...comp.m2, v1: parseFloat(e.target.value)}})} className="w-full p-3 border-2 border-white rounded-xl text-center font-mono text-lg shadow-sm focus:border-teal-400 outline-none transition-all" />
+                                                    </div>
+                                                    <Icon path={icons.arrowRight} className="text-slate-300 mt-5" size={24} />
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-slate-400 uppercase font-bold mb-1.5">Cas 2 (Problema)</div>
+                                                        <input type="number" value={comp.m2.v2} onChange={e => setComp({...comp, m2: {...comp.m2, v2: parseFloat(e.target.value)}})} className="w-full p-3 border-2 border-white rounded-xl text-center font-mono text-lg shadow-sm focus:border-teal-400 outline-none transition-all" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Target */}
+                                            <div className="bg-teal-50/50 p-6 rounded-2xl border border-teal-200 relative shadow-inner">
+                                                <div className="absolute -left-4 top-1/2 -translate-y-1/2 bg-slate-700 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-white">?</div>
+                                                <div className="mb-4">
+                                                    <input type="text" value={comp.target.name} onChange={e => setComp({...comp, target: {...comp.target, name: e.target.value}})} className="bg-transparent font-bold text-xl text-teal-900 outline-none border-b-2 border-dashed border-teal-300 focus:border-teal-500 w-1/2 placeholder-teal-300/50" placeholder="Incògnita" />
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-teal-700 uppercase font-bold mb-1.5">Cas 1 (Conegut)</div>
+                                                        <input type="number" value={comp.target.v1} onChange={e => setComp({...comp, target: {...comp.target, v1: parseFloat(e.target.value)}})} className="w-full p-3 border-2 border-teal-200 bg-white rounded-xl text-center font-mono text-xl shadow-sm focus:border-teal-500 outline-none transition-all" />
+                                                    </div>
+                                                    <Icon path={icons.arrowRight} className="text-teal-400 mt-5" size={24} />
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-teal-700 uppercase font-bold mb-1.5">Cas 2 (Solució x)</div>
+                                                        <div className="w-full p-3 border-2 border-teal-500 bg-teal-600 text-white font-bold rounded-xl text-center font-mono text-xl shadow-md flex items-center justify-center h-[54px]">
+                                                            {calculateCompound().toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* EXPLANATION COLUMN */}
+                                        <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 flex flex-col h-full shadow-inner">
+                                            <h3 className="font-bold text-slate-700 mb-6 text-center text-lg border-b pb-4">Raonament Pas a Pas</h3>
+                                            
+                                            <div className="space-y-6 font-mono text-sm flex-1">
+                                                <div className="bg-white p-4 rounded-xl border border-slate-200 text-center shadow-sm">
+                                                    <div className="text-[10px] text-slate-400 uppercase font-bold mb-2">Fórmula</div>
+                                                    <div className="text-base font-bold text-slate-700">x = {comp.target.v1} · R₁ · R₂</div>
+                                                </div>
+
+                                                <div className="relative pl-6 border-l-4 border-slate-200 space-y-6 py-2">
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wide">Rao 1 ({comp.m1.name})</span>
+                                                        {comp.m1.type === 'direct' ? (
+                                                            <div className="text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-2 rounded-lg inline-block">
+                                                                Directa <span className="text-xs opacity-70 ml-1">({comp.m1.v2} / {comp.m1.v1})</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-orange-700 bg-orange-50 border border-orange-100 px-3 py-2 rounded-lg inline-block">
+                                                                Inversa <span className="text-xs opacity-70 ml-1">({comp.m1.v1} / {comp.m1.v2})</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wide">Rao 2 ({comp.m2.name})</span>
+                                                        {comp.m2.type === 'direct' ? (
+                                                            <div className="text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-2 rounded-lg inline-block">
+                                                                Directa <span className="text-xs opacity-70 ml-1">({comp.m2.v2} / {comp.m2.v1})</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-orange-700 bg-orange-50 border border-orange-100 px-3 py-2 rounded-lg inline-block">
+                                                                Inversa <span className="text-xs opacity-70 ml-1">({comp.m2.v1} / {comp.m2.v2})</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-teal-50 p-6 rounded-xl border-2 border-teal-100 text-center mt-8 shadow-sm">
+                                                    <div className="text-xs font-bold text-teal-600 uppercase mb-2">Resultat Final</div>
+                                                    <div className="text-3xl font-bold text-teal-800">{calculateCompound().toFixed(4)}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </main>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

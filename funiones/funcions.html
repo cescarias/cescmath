@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratori de Funcions Avançat</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICONS ---
+        const IconBase = ({ children, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            FunctionSquare: (props) => <IconBase {...props}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 17c2 0 2.8-1 2.8-2.8V10c0-2 1-3.3 3.2-3"/><path d="M9 11.2h5.7"/></IconBase>,
+            Plus: (props) => <IconBase {...props}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>,
+            Trash2: (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>,
+            Eye: (props) => <IconBase {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>,
+            EyeOff: (props) => <IconBase {...props}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></IconBase>,
+            ZoomIn: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></IconBase>,
+            ZoomOut: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></IconBase>,
+            RefreshCw: (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>,
+            Info: (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></IconBase>,
+            ArrowRightLeft: (props) => <IconBase {...props}><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></IconBase>,
+            Sigma: (props) => <IconBase {...props}><path d="M18 7V4H6l6 8-6 8h12v-3"/></IconBase>,
+            X: (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
+            Grid: (props) => <IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></IconBase>,
+            Ruler: (props) => <IconBase {...props}><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></IconBase>,
+            TrendingUp: (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>
+        };
+
+        // --- MATH ENGINE ---
+
+        const preprocessInput = (input) => {
+          if (!input) return '0';
+          let expr = input.toLowerCase().replace(/\s+/g, '');
+          expr = expr.replace(/\^/g, '**');
+          expr = expr.replace(/sin/g, 'Math.sin');
+          expr = expr.replace(/cos/g, 'Math.cos');
+          expr = expr.replace(/tan/g, 'Math.tan');
+          expr = expr.replace(/log/g, 'Math.log10');
+          expr = expr.replace(/ln/g, 'Math.log');
+          expr = expr.replace(/sqrt/g, 'Math.sqrt');
+          expr = expr.replace(/abs/g, 'Math.abs');
+          expr = expr.replace(/pi/g, 'Math.PI');
+          expr = expr.replace(/e/g, 'Math.E');
+          expr = expr.replace(/([0-9])([a-z(])/g, '$1*$2');
+          expr = expr.replace(/\)([\w(])/g, ')*$1');
+          return expr;
+        };
+
+        const evaluateFunction = (expr, x) => {
+          try {
+            // eslint-disable-next-line no-new-func
+            const f = new Function('x', `return ${expr};`);
+            const y = f(x);
+            if (!isFinite(y) || isNaN(y)) return null;
+            return y;
+          } catch (e) {
+            return null;
+          }
+        };
+
+        // Numerical Methods
+        const calculateDerivativeAt = (expr, x) => {
+          const h = 0.0001;
+          const y1 = evaluateFunction(expr, x - h);
+          const y2 = evaluateFunction(expr, x + h);
+          if (y1 === null || y2 === null) return null;
+          return (y2 - y1) / (2 * h);
+        };
+
+        const calculateIntegral = (expr, a, b) => {
+          const n = 100;
+          const h = (b - a) / n;
+          let sum = 0.5 * (evaluateFunction(expr, a) + evaluateFunction(expr, b));
+          for (let i = 1; i < n; i++) {
+            const val = evaluateFunction(expr, a + i * h);
+            if (val !== null) sum += val;
+          }
+          return sum * h;
+        };
+
+        // Symbolic "Lite" Engine for Polynomials and Basic Functions
+        const getSymbolicDerivative = (expr) => {
+            try {
+                let clean = expr.replace(/\s+/g, '').replace(/\*\*/g, '^').replace(/\*/g, '');
+                if (clean === 'sin(x)') return 'cos(x)';
+                if (clean === 'cos(x)') return '-sin(x)';
+                if (clean === 'e^x') return 'e^x';
+                if (clean === 'ln(x)') return '1/x';
+                if (clean === 'x') return '1';
+                if (!isNaN(clean)) return '0';
+                const terms = clean.match(/[+-]?[^+-]+/g);
+                if (!terms) return "Càlcul Numèric";
+                let derivTerms = [];
+                for (let term of terms) {
+                    let coef = 1, pow = 1, isConst = false;
+                    if (!term.includes('x')) {
+                        isConst = true;
+                    } else {
+                        let parts = term.split('x');
+                        let cStr = parts[0];
+                        let pStr = parts[1];
+                        if (cStr === '' || cStr === '+') coef = 1;
+                        else if (cStr === '-') coef = -1;
+                        else coef = parseFloat(cStr);
+                        if (!pStr) pow = 1;
+                        else pow = parseFloat(pStr.replace('^', ''));
+                    }
+                    if (!isConst) {
+                        let newCoef = coef * pow;
+                        let newPow = pow - 1;
+                        if (newCoef === 0) continue;
+                        let termStr = '';
+                        if (newCoef > 0 && derivTerms.length > 0) termStr += '+';
+                        termStr += newCoef;
+                        if (newPow === 1) termStr += 'x';
+                        else if (newPow !== 0) termStr += 'x^' + newPow;
+                        derivTerms.push(termStr);
+                    }
+                }
+                return derivTerms.length > 0 ? derivTerms.join(' ') : '0';
+            } catch (e) {
+                return "Càlcul Numèric";
+            }
+        };
+
+        const getSymbolicIntegral = (expr) => {
+             try {
+                let clean = expr.replace(/\s+/g, '').replace(/\*\*/g, '^').replace(/\*/g, '');
+                if (clean === 'sin(x)') return '-cos(x)';
+                if (clean === 'cos(x)') return 'sin(x)';
+                if (clean === 'e^x') return 'e^x';
+                if (clean === '1/x') return 'ln|x|';
+                if (clean === 'x') return 'x^2/2';
+                if (!isNaN(clean)) return clean + 'x'; 
+                const terms = clean.match(/[+-]?[^+-]+/g);
+                if (!terms) return "Càlcul Numèric";
+                let intTerms = [];
+                for (let term of terms) {
+                    let coef = 1, pow = 1, isConst = false;
+                    if (!term.includes('x')) {
+                        isConst = true;
+                        coef = parseFloat(term);
+                    } else {
+                        let parts = term.split('x');
+                        let cStr = parts[0];
+                        let pStr = parts[1];
+                        if (cStr === '' || cStr === '+') coef = 1;
+                        else if (cStr === '-') coef = -1;
+                        else coef = parseFloat(cStr);
+                        if (!pStr) pow = 1;
+                        else pow = parseFloat(pStr.replace('^', ''));
+                    }
+                    let newPow = isConst ? 1 : pow + 1;
+                    let newCoef = isConst ? coef : coef / newPow;
+                    let termStr = '';
+                    if (newCoef > 0 && intTerms.length > 0) termStr += '+';
+                    if (Math.abs(newCoef % 1) > 0.001) termStr += newCoef.toFixed(2);
+                    else termStr += newCoef;
+                    if (newPow === 1) termStr += 'x';
+                    else termStr += 'x^' + newPow;
+                    intTerms.push(termStr);
+                }
+                return intTerms.length > 0 ? intTerms.join(' ') + ' + C' : 'C';
+            } catch (e) {
+                return "Càlcul Numèric";
+            }
+        };
+
+        const compilePiecewise = (pieces) => {
+          let compiled = pieces.map(p => {
+            const safeCond = p.condition.replace(/=/g, '==').replace(/<==/g, '<=').replace(/>==/g, '>=').replace(/====/g, '=='); 
+            const safeExpr = preprocessInput(p.expr);
+            return `(${safeCond}) ? (${safeExpr})`;
+          }).join(' : ');
+          return compiled + ' : null';
+        };
+
+        const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c'];
+
+        // --- MAIN COMPONENT ---
+
+        function App() {
+          const [functions, setFunctions] = useState([
+            { 
+              id: 1, 
+              type: 'poly3', 
+              expr: 'x^3 - 2x', 
+              parsed: 'x**3 - 2*x', 
+              visible: true, 
+              color: COLORS[0],
+              pieces: [{ id: 'p1', condition: 'x < 0', type: 'linear', expr: 'x' }]
+            }
+          ]);
+          const [selectedId, setSelectedId] = useState(1);
+          const [xRange, setXRange] = useState([-10, 10]);
+          const [yRange, setYRange] = useState([-10, 10]);
+          const [analysis, setAnalysis] = useState(null);
+          const [activeTab, setActiveTab] = useState('analisi');
+          const [calcInputs, setCalcInputs] = useState({ limitX: 0, derivX: 1, integA: 0, integB: 2 });
+          const [hoverPoint, setHoverPoint] = useState(null);
+          
+          const [showGrid, setShowGrid] = useState(true);
+          const [showScales, setShowScales] = useState(true);
+          
+          const width = 800;
+          const height = 600;
+
+          // -- LOGIC --
+
+          const updateFunctionExpr = (id, newExpr) => {
+            setFunctions(functions.map(f => {
+              if (f.id !== id) return f;
+              let parsed = f.parsed;
+              try { parsed = preprocessInput(newExpr); } catch (e) {}
+              return { ...f, expr: newExpr, parsed };
+            }));
+          };
+
+          const updateFunctionType = (id, newType) => {
+            setFunctions(functions.map(f => {
+              if (f.id !== id) return f;
+              let newExpr = f.expr;
+              let newParsed = f.parsed;
+
+              if (newType === 'piecewise') {
+                newParsed = compilePiecewise(f.pieces);
+                newExpr = '(Definit a trossos)';
+              } else {
+                if (newType === 'linear') newExpr = '2x + 1';
+                else if (newType === 'quadratic') newExpr = 'x^2 - 4';
+                else if (newType === 'poly3') newExpr = 'x^3 - 2x';
+                else if (newType === 'poly4') newExpr = 'x^4 - 2x^2 + 1';
+                else if (newType === 'poly_gen') newExpr = 'x^3 - x + 1';
+                else if (newType === 'trig') newExpr = 'sin(x)';
+                else if (newType === 'exponential') newExpr = 'e^x';
+                else if (newType === 'logarithmic') newExpr = 'ln(x)';
+                else if (newType === 'rational') newExpr = '1/x';
+                else if (newType === 'irrational') newExpr = 'sqrt(x)';
+                else newExpr = 'x'; 
+                try { newParsed = preprocessInput(newExpr); } catch (e) {}
+              }
+              return { ...f, type: newType, expr: newExpr, parsed: newParsed };
+            }));
+          };
+
+          const addPiece = (funcId) => {
+             setFunctions(functions.map(f => {
+              if (f.id !== funcId) return f;
+              const newPieces = [...f.pieces, { id: Math.random().toString(36).substr(2, 9), condition: 'x > 5', type: 'custom', expr: '5' }];
+              return { ...f, pieces: newPieces, parsed: compilePiecewise(newPieces) };
+            }));
+          };
+
+          const removePiece = (funcId, pieceId) => {
+             setFunctions(functions.map(f => {
+              if (f.id !== funcId) return f;
+              if (f.pieces.length <= 1) return f;
+              const newPieces = f.pieces.filter(p => p.id !== pieceId);
+              return { ...f, pieces: newPieces, parsed: compilePiecewise(newPieces) };
+            }));
+          };
+
+          const updatePiece = (funcId, pieceId, field, value) => {
+             setFunctions(functions.map(f => {
+              if (f.id !== funcId) return f;
+              const newPieces = f.pieces.map(p => {
+                if (p.id !== pieceId) return p;
+                if (field === 'type') {
+                  let tmpl = p.expr;
+                  if (value === 'linear') tmpl = 'x';
+                  else if (value === 'quadratic') tmpl = 'x^2';
+                  else if (value === 'trig') tmpl = 'sin(x)';
+                  else if (value === 'exponential') tmpl = 'e^x';
+                  return { ...p, type: value, expr: tmpl };
+                }
+                return { ...p, [field]: value };
+              });
+              return { ...f, pieces: newPieces, parsed: compilePiecewise(newPieces) };
+            }));
+          };
+
+          const addFunction = () => {
+             const newId = Math.max(...functions.map(f => f.id)) + 1;
+             setFunctions([...functions, { id: newId, type: 'custom', expr: 'x', parsed: 'x', visible: true, color: COLORS[functions.length % COLORS.length], pieces: [] }]);
+             setSelectedId(newId);
+          };
+
+          const removeFunction = (id) => {
+             if (functions.length === 1) return;
+             const newFuncs = functions.filter(f => f.id !== id);
+             setFunctions(newFuncs);
+             if (selectedId === id) setSelectedId(newFuncs[0].id);
+          };
+
+          const toggleVisibility = (id) => {
+            setFunctions(functions.map(f => f.id === id ? { ...f, visible: !f.visible } : f));
+          };
+
+          // --- ANALYSIS LOOP ---
+          useEffect(() => {
+            const activeFunc = functions.find(f => f.id === selectedId);
+            if (!activeFunc) return;
+
+            const features = { roots: [], yIntercept: null, symmetry: 'Cap', limitInf: null, limitNegInf: null };
+
+            // Y-Intercept
+            const yInt = evaluateFunction(activeFunc.parsed, 0);
+            if (yInt !== null) features.yIntercept = yInt;
+
+            // Roots
+            const scanStart = -50, scanEnd = 50, scanStep = 0.1;
+            let prevY = evaluateFunction(activeFunc.parsed, scanStart);
+            for (let x = scanStart; x <= scanEnd; x += scanStep) {
+              const currY = evaluateFunction(activeFunc.parsed, x);
+              if (currY === null || prevY === null) { prevY = currY; continue; }
+              if (Math.sign(currY) !== Math.sign(prevY)) {
+                const rootX = x - (scanStep * currY) / (currY - prevY);
+                if (Math.abs(rootX) < 0.0001) features.roots.push(0);
+                else features.roots.push(parseFloat(rootX.toFixed(2)));
+              }
+              prevY = currY;
+            }
+            features.roots = [...new Set(features.roots)];
+
+            // Symmetry
+            const val1 = evaluateFunction(activeFunc.parsed, 2);
+            const valNeg1 = evaluateFunction(activeFunc.parsed, -2);
+            if (Math.abs(val1 - valNeg1) < 0.001) features.symmetry = 'Parell (Simetria eix Y)';
+            else if (Math.abs(val1 + valNeg1) < 0.001) features.symmetry = 'Senar (Simetria origen)';
+
+            // Limits at Infinity
+            const hugeVal = evaluateFunction(activeFunc.parsed, 1000);
+            const hugeNegVal = evaluateFunction(activeFunc.parsed, -1000);
+
+            const formatLimit = (val) => {
+                if (val === null || isNaN(val)) return "Indefinit";
+                if (val > 100) return "+∞";
+                if (val < -100) return "-∞";
+                return val.toFixed(2);
+            };
+            features.limitInf = formatLimit(hugeVal);
+            features.limitNegInf = formatLimit(hugeNegVal);
+
+            setAnalysis(features);
+          }, [functions, selectedId]);
+
+          // --- GRAPH & CALCULUS HELPERS ---
+          const toSvgX = (x) => ((x - xRange[0]) / (xRange[1] - xRange[0])) * width;
+          const toSvgY = (y) => height - ((y - yRange[0]) / (yRange[1] - yRange[0])) * height;
+
+          const generatePath = (parsedExpr) => {
+            let d = '';
+            const step = (xRange[1] - xRange[0]) / width;
+            let moving = false;
+            for (let x = xRange[0]; x <= xRange[1]; x += step) {
+              const y = evaluateFunction(parsedExpr, x);
+              if (y === null || !isFinite(y) || Math.abs(y) > yRange[1] * 20) { moving = false; continue; }
+              const sx = toSvgX(x);
+              const sy = toSvgY(y);
+              const clampedSy = Math.max(-1000, Math.min(height + 1000, sy));
+              if (!moving) { d += `M ${sx} ${clampedSy}`; moving = true; } 
+              else { d += ` L ${sx} ${clampedSy}`; }
+            }
+            return d;
+          };
+
+          const handleMouseMove = (e) => {
+            const rect = e.target.getBoundingClientRect();
+            const scaleX = width / rect.width;
+            const scaleY = height / rect.height;
+            const dataX = xRange[0] + ((e.clientX - rect.left) * scaleX / width) * (xRange[1] - xRange[0]);
+            const activeFunc = functions.find(f => f.id === selectedId);
+            const dataY = activeFunc ? evaluateFunction(activeFunc.parsed, dataX) : null;
+            setHoverPoint({ x: dataX, y: dataY, svgX: (e.clientX - rect.left) * scaleX, svgY: toSvgY(dataY) });
+          };
+
+          const handleZoom = (factor) => {
+            const xSpan = xRange[1] - xRange[0], ySpan = yRange[1] - yRange[0];
+            setXRange([xRange[0] + (xSpan * (1-factor))/2, xRange[1] - (xSpan * (1-factor))/2]);
+            setYRange([yRange[0] + (ySpan * (1-factor))/2, yRange[1] - (ySpan * (1-factor))/2]);
+          };
+
+          const calcResults = (() => {
+            const f = functions.find(func => func.id === selectedId);
+            if (!f) return null;
+            const limitLeft = evaluateFunction(f.parsed, parseFloat(calcInputs.limitX) - 0.0001);
+            const limitRight = evaluateFunction(f.parsed, parseFloat(calcInputs.limitX) + 0.0001);
+            const exact = evaluateFunction(f.parsed, calcInputs.limitX);
+            const derivative = calculateDerivativeAt(f.parsed, parseFloat(calcInputs.derivX));
+            const integral = calculateIntegral(f.parsed, parseFloat(calcInputs.integA), parseFloat(calcInputs.integB));
+            const symbDeriv = getSymbolicDerivative(f.expr);
+            const symbInteg = getSymbolicIntegral(f.expr);
+            return { limitLeft, limitRight, exact, derivative, integral, symbDeriv, symbInteg };
+          })();
+
+          return (
+            <div className="min-h-screen font-sans p-2 text-slate-900 bg-slate-50">
+              <header className="w-[95%] mx-auto mb-4 flex items-center justify-between pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 p-2 rounded-xl shadow-indigo-200 shadow-md">
+                    <Icons.FunctionSquare className="text-white w-6 h-6" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Laboratori de Funcions Avançat</h1>
+                    <p className="text-slate-500 text-sm">Visualització i Càlcul Interactiu</p>
+                  </div>
+                </div>
+              </header>
+
+              <main className="w-[95%] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-6 pb-6">
+                
+                {/* LEFT: FUNCTIONS */}
+                <div className="xl:col-span-3 space-y-4">
+                  <div className="bg-blue-100/40 rounded-xl shadow-sm border border-blue-200 overflow-hidden h-full min-h-[500px]">
+                    <div className="bg-blue-200/50 p-4 border-b border-blue-300 flex justify-between items-center">
+                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wide">Panell de Funcions</span>
+                      <button onClick={addFunction} disabled={functions.length >= 5} className="text-blue-800 hover:bg-blue-300 p-1.5 rounded transition-colors disabled:opacity-50">
+                        <Icons.Plus size={20} />
+                      </button>
+                    </div>
+                    <div className="divide-y divide-blue-200 p-2">
+                      {functions.map((func) => (
+                        <div key={func.id} className={`p-3 mb-2 rounded-lg transition-all cursor-pointer border ${selectedId === func.id ? 'bg-white border-blue-400 shadow-md' : 'bg-white/50 border-transparent hover:bg-white hover:border-blue-200'}`} onClick={() => setSelectedId(func.id)}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: func.color }}></div>
+                            <span className="text-sm font-bold text-slate-700 flex-1 font-mono">f_{func.id}(x)</span>
+                            <button onClick={(e) => { e.stopPropagation(); toggleVisibility(func.id); }} className="text-slate-400 hover:text-slate-600">
+                              {func.visible ? <Icons.Eye size={16}/> : <Icons.EyeOff size={16}/>}
+                            </button>
+                            {functions.length > 1 && (
+                              <button onClick={(e) => { e.stopPropagation(); removeFunction(func.id); }} className="text-slate-400 hover:text-red-500"><Icons.Trash2 size={16} /></button>
+                            )}
+                          </div>
+                          <div className="mb-2">
+                            <select value={func.type} onChange={(e) => updateFunctionType(func.id, e.target.value)} className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 text-slate-600 bg-slate-50 focus:border-blue-500 outline-none">
+                              <option value="custom">Lliure (Manual)</option>
+                              <option value="poly_gen">Polinòmica General</option>
+                              <option value="linear">Polinòmica Grau 1</option>
+                              <option value="quadratic">Polinòmica Grau 2</option>
+                              <option value="poly3">Polinòmica Grau 3</option>
+                              <option value="poly4">Polinòmica Grau 4</option>
+                              <option value="exponential">Exponencial</option>
+                              <option value="logarithmic">Logarítmica</option>
+                              <option value="rational">Racional</option>
+                              <option value="irrational">Irracional</option>
+                              <option value="trig">Trigonomètrica</option>
+                              <option value="piecewise">A Trossos</option>
+                            </select>
+                          </div>
+                          {func.type === 'piecewise' ? (
+                            <div className="bg-slate-100 p-2 rounded border border-slate-200 space-y-3">
+                              <div className="text-[10px] uppercase font-bold text-slate-400 flex justify-between items-center">
+                                Segments
+                                <button onClick={(e) => { e.stopPropagation(); addPiece(func.id); }} className="text-indigo-600 hover:text-indigo-800 bg-white px-1.5 py-0.5 rounded shadow-sm">+ Afegir</button>
+                              </div>
+                              {func.pieces.map((piece) => (
+                                <div key={piece.id} className="bg-white p-2 rounded shadow-sm border border-slate-200 text-xs relative group">
+                                  <button onClick={(e) => { e.stopPropagation(); removePiece(func.id, piece.id); }} className="absolute top-1 right-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.Trash2 size={12} /></button>
+                                  <div className="mb-2 flex items-center gap-1 bg-slate-50 px-1 rounded border border-slate-100">
+                                       <span className="font-mono text-slate-400">Si</span>
+                                       <input value={piece.condition} onChange={(e) => updatePiece(func.id, piece.id, 'condition', e.target.value)} className="flex-1 bg-transparent py-1 font-mono text-blue-600 outline-none placeholder-slate-300" placeholder="x < 0"/>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-1">
+                                     <div className="col-span-1">
+                                       <select value={piece.type} onChange={(e) => updatePiece(func.id, piece.id, 'type', e.target.value)} className="w-full text-[10px] p-1 border rounded bg-slate-50">
+                                         <option value="custom">Lliure</option>
+                                         <option value="linear">Lineal</option>
+                                         <option value="quadratic">Quad</option>
+                                         <option value="exponential">Exp</option>
+                                         <option value="trig">Trig</option>
+                                       </select>
+                                     </div>
+                                     <div className="col-span-2">
+                                       <input value={piece.expr} onChange={(e) => updatePiece(func.id, piece.id, 'expr', e.target.value)} className="w-full p-1 border rounded font-mono bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none" placeholder="expressió"/>
+                                     </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <input type="text" value={func.expr} onChange={(e) => updateFunctionExpr(func.id, e.target.value)} className={`w-full bg-transparent border-b border-dashed border-slate-300 focus:border-indigo-500 outline-none font-mono text-sm py-1 ${selectedId === func.id ? 'text-indigo-900' : 'text-slate-600'}`} placeholder="ex: x^2 - 4"/>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* MIDDLE: GRAPH */}
+                <div className="xl:col-span-6">
+                  <div className="bg-white p-2 rounded-xl shadow-lg border border-slate-300 relative group h-[75vh] min-h-[650px] flex flex-col">
+                    <div className="absolute top-4 right-4 flex flex-col gap-2 z-10 bg-white/95 backdrop-blur p-2 rounded-lg shadow-md border border-slate-200">
+                      <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-md ${showGrid ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}`} title="Mostra/Amaga Rejilla"><Icons.Grid size={18} /></button>
+                      <button onClick={() => setShowScales(!showScales)} className={`p-2 rounded-md ${showScales ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}`} title="Mostra/Amaga Eixos"><Icons.Ruler size={18} /></button>
+                      <div className="w-full h-px bg-slate-200 my-1"></div>
+                      <button onClick={() => handleZoom(0.8)} className="p-2 hover:bg-indigo-50 text-slate-600 rounded-md"><Icons.ZoomIn size={18} /></button>
+                      <button onClick={() => handleZoom(1.25)} className="p-2 hover:bg-indigo-50 text-slate-600 rounded-md"><Icons.ZoomOut size={18} /></button>
+                      <button onClick={() => { setXRange([-10, 10]); setYRange([-10, 10]); }} className="p-2 hover:bg-indigo-50 text-slate-600 rounded-md"><Icons.RefreshCw size={18} /></button>
+                    </div>
+                    <div className="relative flex-1 rounded-lg overflow-hidden cursor-crosshair bg-white border border-slate-300 shadow-inner" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverPoint(null)}>
+                      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full h-full block">
+                        
+                        {/* Grid with Darker Lines */}
+                        {showGrid && (
+                          <pattern id="grid" width={width/10} height={height/10} patternUnits="userSpaceOnUse">
+                            <path d={`M ${width/10} 0 L 0 0 0 ${height/10}`} fill="none" stroke="#94a3b8" strokeWidth="1.5"/>
+                          </pattern>
+                        )}
+                        {showGrid && <rect width="100%" height="100%" fill="url(#grid)" />}
+
+                        {/* Axes */}
+                        <line x1="0" y1={toSvgY(0)} x2={width} y2={toSvgY(0)} stroke="#1e293b" strokeWidth="2.5" />
+                        <line x1={toSvgX(0)} y1="0" x2={toSvgX(0)} y2={height} stroke="#1e293b" strokeWidth="2.5" />
+                        
+                        {/* Graduated Scale (Fixed visibility logic) */}
+                        {showScales && (
+                            <g className="text-xs fill-slate-800 font-mono select-none font-bold">
+                                {(() => {
+                                    const xSpan = xRange[1] - xRange[0];
+                                    let step = 1;
+                                    if(xSpan > 15) step = 2;
+                                    if(xSpan > 30) step = 5;
+                                    if(xSpan > 60) step = 10;
+                                    const ticks = [];
+                                    const yPos = Math.min(Math.max(toSvgY(0), 20), height - 20); // Clamp text inside view
+                                    const yTickPos = toSvgY(0);
+
+                                    for(let i = Math.ceil(xRange[0]); i <= Math.floor(xRange[1]); i++) {
+                                        if (i % step === 0 && i !== 0) {
+                                            const xPos = toSvgX(i);
+                                            // Number
+                                            ticks.push(<text key={`x${i}`} x={xPos} y={yPos + 18} textAnchor="middle">{i}</text>);
+                                            // Tick line (only on actual axis if visible)
+                                            if (yTickPos >= 0 && yTickPos <= height) {
+                                                ticks.push(<line key={`xl${i}`} x1={xPos} y1={yTickPos-5} x2={xPos} y2={yTickPos+5} stroke="#334155" strokeWidth="2" />);
+                                            }
+                                        }
+                                    }
+                                    return ticks;
+                                })()}
+                                {(() => {
+                                    const ySpan = yRange[1] - yRange[0];
+                                    let step = 1;
+                                    if(ySpan > 15) step = 2;
+                                    if(ySpan > 30) step = 5;
+                                    if(ySpan > 60) step = 10;
+                                    const ticks = [];
+                                    const xPos = Math.min(Math.max(toSvgX(0), 20), width - 30); // Clamp text inside view
+                                    const xTickPos = toSvgX(0);
+
+                                    for(let i = Math.ceil(yRange[0]); i <= Math.floor(yRange[1]); i++) {
+                                        if (i % step === 0 && i !== 0) {
+                                            const yPos = toSvgY(i);
+                                            // Number
+                                            ticks.push(<text key={`y${i}`} x={xPos + 10} y={yPos + 4}>{i}</text>);
+                                            // Tick line
+                                            if (xTickPos >= 0 && xTickPos <= width) {
+                                                ticks.push(<line key={`yl${i}`} x1={xTickPos-5} y1={yPos} x2={xTickPos+5} y2={yPos} stroke="#334155" strokeWidth="2" />);
+                                            }
+                                        }
+                                    }
+                                    return ticks;
+                                })()}
+                            </g>
+                        )}
+
+                        {functions.map(f => f.visible && <path key={f.id} d={generatePath(f.parsed)} fill="none" stroke={f.color} strokeWidth={selectedId === f.id ? 3 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={selectedId === f.id ? 1 : 0.7}/>)}
+                        
+                        {activeTab === 'calcul' && calcResults?.derivative !== null && (
+                          <g>
+                             {/* Tangent line visualization */}
+                             {(() => {
+                                const m = calcResults.derivative; const x0 = parseFloat(calcInputs.derivX); const y0 = evaluateFunction(functions.find(f=>f.id===selectedId).parsed, x0);
+                                if (m!==null && y0!==null) return <line x1={toSvgX(x0-2)} y1={toSvgY(m*(x0-2-x0)+y0)} x2={toSvgX(x0+2)} y2={toSvgY(m*(x0+2-x0)+y0)} stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" />;
+                             })()}
+                             <circle cx={toSvgX(parseFloat(calcInputs.derivX))} cy={toSvgY(evaluateFunction(functions.find(f=>f.id===selectedId).parsed, parseFloat(calcInputs.derivX)))} r="4" fill="#ef4444"/>
+                          </g>
+                        )}
+                        {activeTab === 'calcul' && calcResults?.integral && (
+                           <path d={`M ${toSvgX(parseFloat(calcInputs.integA))} ${toSvgY(0)} ` + (() => {
+                             let d = ""; const step=(parseFloat(calcInputs.integB)-parseFloat(calcInputs.integA))/60;
+                             for(let x=parseFloat(calcInputs.integA); x<=parseFloat(calcInputs.integB); x+=step) d+=`L ${toSvgX(x)} ${toSvgY(evaluateFunction(functions.find(f=>f.id===selectedId).parsed, x))} `;
+                             return d;
+                           })() + `L ${toSvgX(parseFloat(calcInputs.integB))} ${toSvgY(0)} Z`} fill={functions.find(f=>f.id===selectedId).color} fillOpacity="0.2" stroke="none"/>
+                        )}
+                      </svg>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 px-2 py-1 font-mono bg-slate-100 rounded-b-lg"><span>Mín: {xRange[0].toFixed(1)}</span><span>Màx: {xRange[1].toFixed(1)}</span></div>
+                  </div>
+                </div>
+
+                {/* RIGHT: ANALYSIS & CALCULUS */}
+                <div className="xl:col-span-3">
+                  <div className="bg-emerald-100/40 rounded-xl shadow-sm border border-emerald-200 overflow-hidden flex flex-col h-full min-h-[500px]">
+                    <div className="flex border-b border-emerald-300 bg-emerald-200/50">
+                      <button onClick={() => setActiveTab('analisi')} className={`flex-1 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'analisi' ? 'text-emerald-900 border-b-2 border-emerald-700 bg-white/50' : 'text-emerald-700 hover:bg-white/30'}`}>Anàlisi</button>
+                      <button onClick={() => setActiveTab('calcul')} className={`flex-1 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'calcul' ? 'text-emerald-900 border-b-2 border-emerald-700 bg-white/50' : 'text-emerald-700 hover:bg-white/30'}`}>Càlcul</button>
+                      <button onClick={() => setActiveTab('taula')} className={`flex-1 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'taula' ? 'text-emerald-900 border-b-2 border-emerald-700 bg-white/50' : 'text-emerald-700 hover:bg-white/30'}`}>Taula</button>
+                    </div>
+
+                    <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
+                      
+                      {activeTab === 'analisi' && analysis && (
+                        <div className="space-y-4 text-sm">
+                          <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                             <h4 className="font-bold text-emerald-800 mb-2 flex items-center gap-2"><Icons.Info size={16}/> Propietats Globals</h4>
+                             <p className="text-slate-600 mb-1"><span className="font-semibold text-emerald-700">Simetria:</span> {analysis.symmetry}</p>
+                             <p className="text-slate-600 mb-1"><span className="font-semibold text-emerald-700">Tall Eix Y:</span> {analysis.yIntercept !== null ? `(0, ${analysis.yIntercept.toFixed(2)})` : 'No existeix'}</p>
+                          </div>
+                          
+                          <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                             <h4 className="font-bold text-emerald-800 mb-2 flex items-center gap-2"><Icons.TrendingUp size={16}/> Comportament Infinit</h4>
+                             <div className="grid grid-cols-2 gap-2 mt-2">
+                               <div className="bg-emerald-50 p-2 rounded text-center border border-emerald-100">
+                                 <div className="text-xs text-emerald-600 font-mono">x → +∞</div>
+                                 <div className="font-bold text-emerald-800 text-lg">{analysis.limitInf}</div>
+                               </div>
+                               <div className="bg-emerald-50 p-2 rounded text-center border border-emerald-100">
+                                 <div className="text-xs text-emerald-600 font-mono">x → -∞</div>
+                                 <div className="font-bold text-emerald-800 text-lg">{analysis.limitNegInf}</div>
+                               </div>
+                             </div>
+                          </div>
+
+                          <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                            <h4 className="font-bold text-emerald-800 mb-2">Arrels (f(x)=0)</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {analysis.roots.length > 0 ? analysis.roots.map((r, i) => (
+                                <span key={i} className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded font-mono text-xs border border-emerald-200">{r}</span>
+                              )) : <span className="text-slate-400 italic">Cap en aquest interval</span>}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'calcul' && (
+                        <div className="space-y-6 text-sm">
+                          
+                          <div className="space-y-2 bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                            <h4 className="font-bold text-emerald-800 flex items-center gap-2"><Icons.ArrowRightLeft size={16}/> Límits Laterals</h4>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-mono text-emerald-600">x →</span>
+                              <input type="number" value={calcInputs.limitX} onChange={(e) => setCalcInputs({...calcInputs, limitX: e.target.value})} className="border border-emerald-200 rounded px-2 py-1 w-20 text-center font-mono focus:border-emerald-500 outline-none"/>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                               <div className="bg-emerald-50 p-2 rounded border border-emerald-100">
+                                 <div className="text-emerald-600 font-mono mb-1">x → a⁻</div>
+                                 <div className="font-bold text-emerald-800">{calcResults?.limitLeft?.toFixed(4)}</div>
+                               </div>
+                               <div className="bg-emerald-50 p-2 rounded border border-emerald-100">
+                                 <div className="text-emerald-600 font-mono mb-1">x → a⁺</div>
+                                 <div className="font-bold text-emerald-800">{calcResults?.limitRight?.toFixed(4)}</div>
+                               </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                            <h4 className="font-bold text-emerald-800 flex items-center gap-2"><Icons.FunctionSquare size={16}/> Derivada</h4>
+                            
+                            <div className="bg-orange-50 border border-orange-200 p-2 rounded mb-2">
+                                <span className="text-[10px] uppercase font-bold text-orange-500 block mb-1">Funció Derivada (Aprox)</span>
+                                <div className="font-mono text-orange-900 font-bold overflow-x-auto whitespace-nowrap">f'(x) = {calcResults.symbDeriv}</div>
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="font-mono text-emerald-600 text-xs">Valor en x =</span>
+                              <input type="number" value={calcInputs.derivX} onChange={(e) => setCalcInputs({...calcInputs, derivX: e.target.value})} className="border border-emerald-200 rounded px-1 py-1 w-16 text-center font-mono focus:border-emerald-500 outline-none text-xs"/>
+                            </div>
+                            <div className="text-right font-mono font-bold text-emerald-700 mt-1">f'({calcInputs.derivX}) ≈ {calcResults?.derivative?.toFixed(4)}</div>
+                          </div>
+
+                          <div className="space-y-2 bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                            <h4 className="font-bold text-emerald-800 flex items-center gap-2"><Icons.Sigma size={16}/> Integral</h4>
+                            
+                            <div className="bg-indigo-50 border border-indigo-200 p-2 rounded mb-2">
+                                <span className="text-[10px] uppercase font-bold text-indigo-500 block mb-1">Funció Primitiva (Aprox)</span>
+                                <div className="font-mono text-indigo-900 font-bold overflow-x-auto whitespace-nowrap">F(x) = {calcResults.symbInteg}</div>
+                            </div>
+
+                            <div className="flex items-center gap-2 justify-center font-mono text-xs mt-2">
+                              ∫ <input type="number" value={calcInputs.integA} onChange={(e) => setCalcInputs({...calcInputs, integA: e.target.value})} className="border border-emerald-200 rounded px-1 py-1 w-10 text-center mx-1"/>
+                              fins <input type="number" value={calcInputs.integB} onChange={(e) => setCalcInputs({...calcInputs, integB: e.target.value})} className="border border-emerald-200 rounded px-1 py-1 w-10 text-center mx-1"/>
+                            </div>
+                            <div className="text-center font-mono font-bold text-emerald-700 mt-2 text-lg">Àrea ≈ {calcResults?.integral?.toFixed(4)}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'taula' && (
+                        <div className="bg-white rounded-lg border border-emerald-200 shadow-sm overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-emerald-800 uppercase bg-emerald-50 sticky top-0"><tr><th className="px-3 py-2">x</th><th className="px-3 py-2">f(x)</th></tr></thead>
+                            <tbody className="font-mono text-xs divide-y divide-emerald-100">
+                              {[-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5].map(x => (
+                                <tr key={x} className="hover:bg-emerald-50/50">
+                                  <td className="px-3 py-2 font-bold text-slate-600">{x}</td>
+                                  <td className="px-3 py-2 text-emerald-600">{evaluateFunction(functions.find(f => f.id === selectedId)?.parsed, x)?.toFixed(4) ?? '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </main>
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

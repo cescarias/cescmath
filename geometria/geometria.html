@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratori de Geometria ESO</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { background-color: #f8fafc; }
+        
+        /* Slider styling */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ICONS ---
+        const Icon = ({ path, size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d={path} />
+            </svg>
+        );
+
+        const icons = {
+            cube: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12",
+            square: "M3 3h18v18H3z",
+            rotate: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+            eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 5c-3.866 0-7 3.134-7 7s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7zm0 2.5c2.485 0 4.5 2.015 4.5 4.5s-2.015 4.5-4.5 4.5-4.5-2.015-4.5-4.5 2.015-4.5 4.5-4.5z",
+            info: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+            zoom: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"
+        };
+
+        // --- DATA & LOGIC ---
+
+        const SHAPES = {
+            '2d': [
+                { id: 'rectangle', name: 'Rectangle', params: { base: 10, height: 6 }, color: '#3b82f6' },
+                { id: 'triangle', name: 'Triangle', params: { base: 8, height: 8 }, color: '#10b981' },
+                { id: 'circle', name: 'Cercle / Circumferència', params: { radius: 5 }, color: '#f59e0b' },
+                { id: 'sector', name: 'Sector Circular', params: { radius: 6, angle: 60 }, color: '#ec4899' },
+                { id: 'corona', name: 'Corona Circular', params: { radius_ext: 7, radius_int: 4 }, color: '#8b5cf6' },
+                { id: 'trapezoid', name: 'Trapezi', params: { base1: 10, base2: 6, height: 5 }, color: '#6366f1' },
+            ],
+            '3d': [
+                { id: 'cube', name: 'Cub', params: { side: 5 }, color: '#3b82f6' },
+                { id: 'prism', name: 'Prisma Rect.', params: { length: 8, width: 5, height: 6 }, color: '#10b981' },
+                { id: 'pyramid', name: 'Piràmide Quad.', params: { base: 6, height: 8 }, color: '#8b5cf6' },
+                { id: 'cylinder', name: 'Cilindre', params: { radius: 4, height: 8 }, color: '#f59e0b' },
+                { id: 'cone', name: 'Con', params: { radius: 4, height: 8 }, color: '#ec4899' },
+                { id: 'sphere', name: 'Esfera', params: { radius: 5 }, color: '#ef4444' },
+            ]
+        };
+
+        const calculateResults = (type, id, p) => {
+            const res = [];
+            if (type === '2d') {
+                if (id === 'rectangle') {
+                    res.push({ label: 'Àrea', val: p.base * p.height, formula: 'b · h' });
+                    res.push({ label: 'Perímetre', val: 2*p.base + 2*p.height, formula: '2b + 2h' });
+                } else if (id === 'triangle') {
+                    const side = Math.sqrt(Math.pow(p.base/2, 2) + Math.pow(p.height, 2));
+                    res.push({ label: 'Àrea', val: (p.base * p.height) / 2, formula: '(b · h) / 2' });
+                    res.push({ label: 'Perímetre (aprox)', val: p.base + 2*side, formula: 'b + 2·c' });
+                } else if (id === 'circle') {
+                    res.push({ label: 'Àrea (Cercle)', val: Math.PI * Math.pow(p.radius, 2), formula: 'π · r²' });
+                    res.push({ label: 'Longitud (Circum.)', val: 2 * Math.PI * p.radius, formula: '2 · π · r' });
+                } else if (id === 'sector') {
+                    res.push({ label: 'Àrea', val: (Math.PI * Math.pow(p.radius, 2) * p.angle) / 360, formula: '(π·r²·α)/360' });
+                    res.push({ label: 'Longitud Arc', val: (2 * Math.PI * p.radius * p.angle) / 360, formula: '(2·π·r·α)/360' });
+                } else if (id === 'corona') {
+                    const R = Math.max(p.radius_ext, p.radius_int + 0.1);
+                    const r = Math.min(p.radius_ext - 0.1, p.radius_int);
+                    res.push({ label: 'Àrea', val: Math.PI * (Math.pow(R, 2) - Math.pow(r, 2)), formula: 'π(R² - r²)' });
+                } else if (id === 'trapezoid') {
+                    const area = ((p.base1 + p.base2) / 2) * p.height;
+                    const leg = Math.sqrt(Math.pow(Math.abs(p.base1 - p.base2)/2, 2) + Math.pow(p.height, 2));
+                    res.push({ label: 'Àrea', val: area, formula: '((B+b)/2)·h' });
+                    res.push({ label: 'Perímetre', val: p.base1 + p.base2 + 2*leg, formula: 'B + b + 2·c' });
+                }
+            } else {
+                if (id === 'cube') {
+                    res.push({ label: 'Volum', val: Math.pow(p.side, 3), formula: 'a³' });
+                    res.push({ label: 'Sup. Total', val: 6 * Math.pow(p.side, 2), formula: '6 · a²' });
+                } else if (id === 'prism') {
+                    const v = p.length * p.width * p.height;
+                    const s = 2*(p.length*p.width + p.length*p.height + p.width*p.height);
+                    res.push({ label: 'Volum', val: v, formula: 'a · b · c' });
+                    res.push({ label: 'Sup. Total', val: s, formula: '2(ab + ac + bc)' });
+                } else if (id === 'pyramid') {
+                    const v = (Math.pow(p.base, 2) * p.height) / 3;
+                    const ap = Math.sqrt(Math.pow(p.height, 2) + Math.pow(p.base/2, 2));
+                    const s = Math.pow(p.base, 2) + 2 * p.base * ap; 
+                    res.push({ label: 'Volum', val: v, formula: '(b² · h) / 3' });
+                    res.push({ label: 'Sup. Total', val: s, formula: 'b² + 2·b·ap' });
+                } else if (id === 'cylinder') {
+                    res.push({ label: 'Volum', val: Math.PI * Math.pow(p.radius, 2) * p.height, formula: 'π · r² · h' });
+                    res.push({ label: 'Sup. Total', val: 2*Math.PI*p.radius*(p.height + p.radius), formula: '2πr(h + r)' });
+                } else if (id === 'cone') {
+                    const g = Math.sqrt(Math.pow(p.radius, 2) + Math.pow(p.height, 2));
+                    res.push({ label: 'Volum', val: (Math.PI * Math.pow(p.radius, 2) * p.height)/3, formula: '(πr²h)/3' });
+                    res.push({ label: 'Generatriu', val: g, formula: '√(h² + r²)' });
+                    res.push({ label: 'Sup. Total', val: Math.PI*p.radius*(p.radius + g), formula: 'πr(r + g)' });
+                } else if (id === 'sphere') {
+                    res.push({ label: 'Volum', val: (4/3) * Math.PI * Math.pow(p.radius, 3), formula: '4/3 · π · r³' });
+                    res.push({ label: 'Superfície', val: 4 * Math.PI * Math.pow(p.radius, 2), formula: '4 · π · r²' });
+                }
+            }
+            return res;
+        };
+
+        // --- SVG HELPERS ---
+
+        const DimLine = ({ x1, y1, x2, y2, text, offset = 20, vertical = false }) => {
+            let lx1=x1, ly1=y1, lx2=x2, ly2=y2, tx, ty;
+            const dist = Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2));
+            const angle = Math.atan2(y2-y1, x2-x1);
+            
+            // Calculate offset vector
+            const ox = -Math.sin(angle) * offset;
+            const oy = Math.cos(angle) * offset;
+
+            lx1 = x1 + ox; ly1 = y1 + oy;
+            lx2 = x2 + ox; ly2 = y2 + oy;
+            tx = (lx1 + lx2) / 2; ty = (ly1 + ly2) / 2;
+
+            return (
+                <g className="text-xs fill-slate-700 stroke-slate-700 pointer-events-none" style={{textShadow: '0px 0px 2px white'}}>
+                    {/* Extension lines */}
+                    <line x1={x1} y1={y1} x2={lx1} y2={ly1} strokeDasharray="2,2" strokeWidth="0.5" stroke="#94a3b8" />
+                    <line x1={x2} y1={y2} x2={lx2} y2={ly2} strokeDasharray="2,2" strokeWidth="0.5" stroke="#94a3b8" />
+                    {/* Main line */}
+                    <line x1={lx1} y1={ly1} x2={lx2} y2={ly2} strokeWidth="1.5" markerEnd="url(#arrowhead)" markerStart="url(#arrowstart)" />
+                    {/* Text */}
+                    <text x={tx} y={ty} textAnchor="middle" stroke="none" fontWeight="bold" dy={Math.abs(oy) > Math.abs(ox) ? "0.3em" : "-0.3em"}>{text}</text>
+                </g>
+            );
+        };
+
+        const rotatePoint = (x, y, z, rotX, rotY) => {
+            const radY = rotY * Math.PI / 180;
+            const x1 = x * Math.cos(radY) - z * Math.sin(radY);
+            const z1 = x * Math.sin(radY) + z * Math.cos(radY);
+            const radX = rotX * Math.PI / 180;
+            const y2 = y * Math.cos(radX) - z1 * Math.sin(radX);
+            const z2 = y * Math.sin(radX) + z1 * Math.cos(radX);
+            return { x: x1, y: y2, z: z2 };
+        };
+
+        const project = (p, width, height, scale) => {
+            const cx = width / 2;
+            const cy = height / 2;
+            return { x: cx + p.x * scale, y: cy - p.y * scale };
+        };
+
+        const Canvas2D = ({ shapeId, p, showDims, width, height, zoom }) => {
+            const cx = width / 2;
+            const cy = height / 2;
+            const scale = 20 * zoom;
+            let content = null, dims = null;
+
+            if (shapeId === 'rectangle') {
+                const w = p.base * scale, h = p.height * scale;
+                content = <rect x={cx - w/2} y={cy - h/2} width={w} height={h} fill="#3b82f6" fillOpacity="0.2" stroke="#2563eb" strokeWidth="3" />;
+                if(showDims) dims = <><DimLine x1={cx-w/2} y1={cy+h/2} x2={cx+w/2} y2={cy+h/2} text={`b=${p.base}`} offset={20} /><DimLine x1={cx+w/2} y1={cy-h/2} x2={cx+w/2} y2={cy+h/2} text={`h=${p.height}`} offset={20} vertical /></>;
+            } else if (shapeId === 'triangle') {
+                const w = p.base * scale, h = p.height * scale;
+                const pts = `${cx-w/2},${cy+h/2} ${cx+w/2},${cy+h/2} ${cx},${cy-h/2}`;
+                content = <polygon points={pts} fill="#10b981" fillOpacity="0.2" stroke="#059669" strokeWidth="3" />;
+                if(showDims) dims = <><DimLine x1={cx-w/2} y1={cy+h/2} x2={cx+w/2} y2={cy+h/2} text={`b=${p.base}`} offset={20} /><line x1={cx} y1={cy+h/2} x2={cx} y2={cy-h/2} stroke="#64748b" strokeDasharray="4,4"/><text x={cx+5} y={cy} className="text-xs font-bold fill-slate-700">h={p.height}</text></>;
+            } else if (shapeId === 'circle') {
+                const r = p.radius * scale;
+                content = <circle cx={cx} cy={cy} r={r} fill="#f59e0b" fillOpacity="0.2" stroke="#d97706" strokeWidth="3" />;
+                if(showDims) dims = <g><line x1={cx} y1={cy} x2={cx+r} y2={cy} stroke="#64748b" strokeWidth="2"/><text x={cx+r/2} y={cy-5} textAnchor="middle" className="text-xs font-bold fill-slate-700">r={p.radius}</text></g>;
+            } else if (shapeId === 'sector') {
+                const r = p.radius * scale;
+                const startAngle = -90 * Math.PI / 180;
+                const endAngle = startAngle + (p.angle * Math.PI / 180);
+                const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+                const x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
+                const largeArc = p.angle > 180 ? 1 : 0;
+                content = <path d={`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z`} fill="#ec4899" fillOpacity="0.2" stroke="#db2777" strokeWidth="3" />;
+                if(showDims) dims = <g><line x1={cx} y1={cy} x2={x1} y2={y1} stroke="#64748b"/><text x={cx+10} y={cy-r/2} className="text-xs font-bold fill-slate-700">r={p.radius}</text><text x={cx} y={cy+15} textAnchor="middle" className="text-xs font-bold fill-slate-700">{p.angle}°</text></g>;
+            } else if (shapeId === 'corona') {
+                const R = Math.max(p.radius_ext, p.radius_int + 0.1) * scale;
+                const r = Math.min(p.radius_ext - 0.1, p.radius_int) * scale;
+                content = <path d={`M ${cx} ${cy} m -${R}, 0 a ${R},${R} 0 1,0 ${R*2},0 a ${R},${R} 0 1,0 -${R*2},0 M ${cx} ${cy} m -${r}, 0 a ${r},${r} 0 1,0 ${r*2},0 a ${r},${r} 0 1,0 -${r*2},0`} fill="#8b5cf6" fillOpacity="0.2" stroke="#7c3aed" strokeWidth="3" fillRule="evenodd" />;
+                if(showDims) dims = <g><line x1={cx} y1={cy} x2={cx+R} y2={cy} stroke="#64748b"/><text x={cx+r+(R-r)/2} y={cy-5} textAnchor="middle" className="text-xs font-bold fill-slate-700">R</text><line x1={cx} y1={cy} x2={cx} y2={cy-r} stroke="#64748b"/><text x={cx+5} y={cy-r/2} className="text-xs font-bold fill-slate-700">r</text></g>;
+            } else if (shapeId === 'trapezoid') {
+                const b1 = p.base1 * scale, b2 = p.base2 * scale, h = p.height * scale;
+                const pts = `${cx-b2/2},${cy-h/2} ${cx+b2/2},${cy-h/2} ${cx+b1/2},${cy+h/2} ${cx-b1/2},${cy+h/2}`;
+                content = <polygon points={pts} fill="#6366f1" fillOpacity="0.2" stroke="#4f46e5" strokeWidth="3" />;
+                if(showDims) dims = <><DimLine x1={cx-b1/2} y1={cy+h/2} x2={cx+b1/2} y2={cy+h/2} text={`B=${p.base1}`} offset={20}/><DimLine x1={cx-b2/2} y1={cy-h/2} x2={cx+b2/2} y2={cy-h/2} text={`b=${p.base2}`} offset={-20} vertical={false}/><line x1={cx} y1={cy-h/2} x2={cx} y2={cy+h/2} stroke="#64748b" strokeDasharray="4,4"/><text x={cx+5} y={cy} className="text-xs font-bold fill-slate-700">h={p.height}</text></>;
+            }
+
+            return <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible"><defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#334155" /></marker><marker id="arrowstart" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto"><polygon points="10 0, 0 3.5, 10 7" fill="#334155" /></marker></defs>{content}{dims}</svg>;
+        };
+
+        const Canvas3D = ({ shapeId, p, showDims, width, height, rotX, rotY, zoom }) => {
+            const scale = 20 * zoom;
+            const points = [];
+            let edges = [];
+            let faces = [];
+            let dimensionData = []; // Store pairs of point indices to dimension
+
+            // Geometry Generation
+            if (shapeId === 'cube' || shapeId === 'prism') {
+                const x = (shapeId==='cube' ? p.side : p.length) / 2;
+                const y = (shapeId==='cube' ? p.side : p.height) / 2;
+                const z = (shapeId==='cube' ? p.side : p.width) / 2;
+                // 0:FLB, 1:FRB, 2:FRT, 3:FLT (Front Face)
+                points.push({x:-x,y:-y,z:-z}, {x:x,y:-y,z:-z}, {x:x,y:y,z:-z}, {x:-x,y:y,z:-z});
+                // 4:BLB, 5:BRB, 6:BRT, 7:BLT (Back Face)
+                points.push({x:-x,y:-y,z:z}, {x:x,y:-y,z:z}, {x:x,y:y,z:z}, {x:-x,y:y,z:z});
+                faces.push([0,1,2,3], [1,5,6,2], [5,4,7,6], [4,0,3,7], [3,2,6,7], [4,5,1,0]);
+                
+                // Add Dimension definitions (point indices + label)
+                dimensionData.push({ p1: 0, p2: 1, label: shapeId==='cube'?'a':`L=${p.length}` }); // Bottom Front (Length)
+                dimensionData.push({ p1: 1, p2: 2, label: shapeId==='cube'?'a':`h=${p.height}` }); // Side Front (Height)
+                dimensionData.push({ p1: 2, p2: 6, label: shapeId==='cube'?'a':`Am=${p.width}` }); // Top Side (Width/Depth)
+
+            } else if (shapeId === 'pyramid') {
+                const b = p.base / 2;
+                const h = p.height / 2; 
+                points.push({x:-b,y:-h,z:-b}, {x:b,y:-h,z:-b}, {x:b,y:-h,z:b}, {x:-b,y:-h,z:b}); // Base 0-3
+                points.push({x:0,y:h,z:0}); // Apex 4
+                faces.push([0,1,4], [1,2,4], [2,3,4], [3,0,4], [3,2,1,0]);
+                
+                dimensionData.push({ p1: 0, p2: 1, label: `b=${p.base}` });
+                // For height, we'd ideally want center point, but let's use side edge approximate
+                dimensionData.push({ p1: 1, p2: 4, label: `h=${p.height} (aprox)` }); 
+
+            } else if (shapeId === 'cylinder') {
+                const r = p.radius; const h = p.height / 2; const segs = 16;
+                for(let i=0; i<segs; i++) { const ang=(i/segs)*2*Math.PI; points.push({x:r*Math.cos(ang),y:h,z:r*Math.sin(ang)}); } // Top 0-15
+                for(let i=0; i<segs; i++) { const ang=(i/segs)*2*Math.PI; points.push({x:r*Math.cos(ang),y:-h,z:r*Math.sin(ang)}); } // Bot 16-31
+                edges.push([0, segs], [4, segs+4], [8, segs+8], [12, segs+12]);
+                const topFace=[], botFace=[]; for(let i=0;i<segs;i++) topFace.push(i); for(let i=0;i<segs;i++) botFace.push(segs+(segs-1-i));
+                faces.push(topFace, botFace);
+                
+                // Dimensions
+                dimensionData.push({ p1: 16, p2: 16+segs/2, label: `2r=${p.radius*2}` }); // Diameter bottom
+                dimensionData.push({ p1: 0, p2: 16, label: `h=${p.height}` }); // Side height
+
+            } else if (shapeId === 'cone') {
+                const r=p.radius; const h=p.height/2; const segs=16;
+                for(let i=0;i<segs;i++) { const ang=(i/segs)*2*Math.PI; points.push({x:r*Math.cos(ang),y:-h,z:r*Math.sin(ang)}); } // Base 0-15
+                points.push({x:0,y:h,z:0}); // Apex 16
+                const baseFace=[]; for(let i=0;i<segs;i++) baseFace.push(segs-1-i); faces.push(baseFace);
+                edges.push([0,16], [4,16], [8,16], [12,16]);
+
+                dimensionData.push({ p1: 0, p2: segs/2, label: `2r=${p.radius*2}` });
+                dimensionData.push({ p1: 0, p2: 16, label: `g` }); // Slant height
+
+            } else if (shapeId === 'sphere') {
+                const r = p.radius; const segs = 24;
+                for(let i=0; i<segs; i++) { const ang=(i/segs)*2*Math.PI; points.push({x:r*Math.cos(ang),y:0,z:r*Math.sin(ang)}); }
+                for(let i=0; i<segs; i++) { const ang=(i/segs)*2*Math.PI; points.push({x:r*Math.cos(ang),y:r*Math.sin(ang),z:0}); }
+                for(let i=0; i<segs; i++) { const ang=(i/segs)*2*Math.PI; points.push({x:0,y:r*Math.sin(ang),z:r*Math.cos(ang)}); }
+                const drawRing=(s)=>{const f=[];for(let i=0;i<segs;i++)f.push(s+i);return f;};
+                faces.push(drawRing(0), drawRing(segs), drawRing(segs*2));
+                
+                // Dimension: just across horizontal ring
+                dimensionData.push({ p1: 0, p2: segs/2, label: `2r=${p.radius*2}` });
+            }
+
+            const rotatedPoints = points.map(pt => rotatePoint(pt.x, pt.y, pt.z, rotX, rotY));
+            const projectedPoints = rotatedPoints.map(pt => project(pt, width, height, scale));
+            const faceData = faces.map((indices, i) => {
+                let zSum = 0; indices.forEach(idx => zSum += rotatedPoints[idx].z);
+                return { indices, z: zSum / indices.length, id: i };
+            });
+            faceData.sort((a, b) => a.z - b.z);
+            const color = (SHAPES['3d'].find(s=>s.id===shapeId)||{}).color || '#ccc';
+
+            return (
+                <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible pointer-events-none">
+                    {faceData.map((f, i) => {
+                        const pathData = f.indices.map((idx, j) => (j===0?'M':'L') + `${projectedPoints[idx].x},${projectedPoints[idx].y}`).join(' ') + ' Z';
+                        const isWireOnly = shapeId === 'sphere' || (shapeId === 'cylinder' && f.indices.length > 4) || (shapeId === 'cone' && f.indices.length > 4);
+                        const fill = isWireOnly ? 'none' : color;
+                        const fillOp = isWireOnly ? 0 : 0.2;
+                        const stroke = isWireOnly ? color : '#334155';
+                        const strokeW = isWireOnly ? 2 : 1;
+                        return <path key={i} d={pathData} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeLinejoin="round" />;
+                    })}
+                    {edges.map((e, i) => <line key={`e${i}`} x1={projectedPoints[e[0]].x} y1={projectedPoints[e[0]].y} x2={projectedPoints[e[1]].x} y2={projectedPoints[e[1]].y} stroke="#334155" strokeWidth="1" />)}
+                    
+                    {/* DYNAMIC 3D DIMENSIONS */}
+                    {showDims && dimensionData.map((d, i) => {
+                        const start = projectedPoints[d.p1];
+                        const end = projectedPoints[d.p2];
+                        // Simple check to not draw dimensions that are hidden behind (optional, simple logic here implies always drawn)
+                        return <DimLine key={`d${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} text={d.label} offset={20} />;
+                    })}
+                </svg>
+            );
+        };
+
+        // --- MAIN APP ---
+
+        function App() {
+            const [view, setView] = useState('2d');
+            const [shapeId, setShapeId] = useState('');
+            const [params, setParams] = useState({});
+            const [showDims, setShowDims] = useState(true);
+            const [rot, setRot] = useState({ x: -20, y: 45 });
+            const [zoom, setZoom] = useState(1);
+            const isDragging = useRef(false);
+            const lastMouse = useRef({ x: 0, y: 0 });
+
+            useEffect(() => {
+                const defaultShape = SHAPES[view][0];
+                setShapeId(defaultShape.id);
+                setParams(defaultShape.params);
+                setRot({ x: -20, y: 45 });
+                setZoom(1);
+            }, [view]);
+
+            const currentShapeDef = SHAPES[view].find(s => s.id === shapeId);
+            const updateParam = (key, val) => setParams(prev => ({ ...prev, [key]: parseFloat(val) }));
+            const switchShape = (newId) => {
+                setShapeId(newId);
+                const s = SHAPES[view].find(x => x.id === newId);
+                if (s) setParams(s.params);
+            };
+            const results = currentShapeDef ? calculateResults(view, shapeId, params) : [];
+
+            const handleMouseDown = (e) => {
+                if (view !== '3d') return;
+                isDragging.current = true;
+                lastMouse.current = { x: e.clientX, y: e.clientY };
+            };
+            const handleMouseMove = (e) => {
+                if (!isDragging.current || view !== '3d') return;
+                const dx = e.clientX - lastMouse.current.x;
+                const dy = e.clientY - lastMouse.current.y;
+                setRot(prev => ({ x: prev.x + dy, y: prev.y + dx }));
+                lastMouse.current = { x: e.clientX, y: e.clientY };
+            };
+            const handleMouseUp = () => isDragging.current = false;
+
+            return (
+                <div className="min-h-screen font-sans text-slate-900 bg-slate-50 flex flex-col pb-10" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm flex-none">
+                        <div className="w-[98%] mx-auto px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-emerald-600 p-2 rounded-lg text-white"><Icon path={icons.square} size={24} /></div>
+                                <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">Laboratori de Geometria</h1><p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Matemàtiques 2n/3r ESO</p></div>
+                            </div>
+                            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                <button onClick={() => setView('2d')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${view === '2d' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.square} size={16} /> Geometria Plana</button>
+                                <button onClick={() => setView('3d')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${view === '3d' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.cube} size={16} /> Cossos Geomètrics</button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 w-[98%] mx-auto mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300 h-full">
+                        <div className="lg:col-span-3 flex flex-col gap-4">
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-3">Figura</label>
+                                <div className="grid grid-cols-2 gap-2 mb-6">
+                                    {SHAPES[view].map(s => (
+                                        <button key={s.id} onClick={() => switchShape(s.id)} className={`p-2 text-[10px] font-bold rounded border text-left transition-colors truncate ${shapeId === s.id ? (view==='2d' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-blue-50 border-blue-200 text-blue-700') : 'border-slate-100 text-slate-500 hover:bg-slate-50'}`}>{s.name}</button>
+                                    ))}
+                                </div>
+                                <hr className="border-slate-100 my-4" />
+                                <div className="space-y-5">
+                                    {currentShapeDef && Object.keys(currentShapeDef.params).map(key => {
+                                        let label = key;
+                                        if(key === 'base') label = 'Base'; if(key === 'base1') label = 'Base Major'; if(key === 'base2') label = 'Base Menor';
+                                        if(key === 'height') label = 'Altura'; if(key === 'radius') label = 'Radi'; if(key === 'radius_ext') label = 'Radi Ext.';
+                                        if(key === 'radius_int') label = 'Radi Int.'; if(key === 'angle') label = 'Angle'; if(key === 'side') label = 'Costat/Aresta';
+                                        if(key === 'length') label = 'Llargada'; if(key === 'width') label = 'Amplada';
+                                        const maxVal = key === 'angle' ? 360 : 20; const stepVal = key === 'angle' ? 1 : 0.5;
+                                        return (
+                                            <div key={key}>
+                                                <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 uppercase"><span>{label}</span><span className="font-mono bg-slate-100 px-2 rounded text-slate-800">{params[key]} {key==='angle'?'°':'cm'}</span></div>
+                                                <input type="range" min="1" max={maxVal} step={stepVal} value={params[key]} onChange={(e) => updateParam(key, e.target.value)} className={`w-full ${view==='2d'?'text-emerald-500':'text-blue-500'}`}/>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <button onClick={() => setShowDims(!showDims)} className={`flex items-center justify-center gap-2 p-3 rounded-xl border font-bold text-sm transition-all ${showDims ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}><Icon path={icons.eye} size={18} /> {showDims ? 'Ocultar Cotes' : 'Mostrar Cotes'}</button>
+                        </div>
+
+                        <div className="lg:col-span-6">
+                            <div className={`bg-white rounded-xl shadow-lg border border-slate-200 h-[70vh] min-h-[500px] relative overflow-hidden flex flex-col select-none ${view === '3d' ? 'cursor-grab active:cursor-grabbing' : ''}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
+                                <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full border border-slate-200 text-xs font-mono text-slate-500 shadow-sm pointer-events-none flex items-center gap-2">
+                                    {view === '3d' && <Icon path={icons.rotate} size={12}/>}
+                                    {view === '3d' ? 'Arrossega per rotar' : 'Vista 2D'}
+                                </div>
+                                <div className="flex-1 w-full h-full">
+                                    {currentShapeDef && view === '2d' && <Canvas2D shapeId={shapeId} p={params} showDims={showDims} width={800} height={600} zoom={zoom} />}
+                                    {currentShapeDef && view === '3d' && <Canvas3D shapeId={shapeId} p={params} showDims={showDims} width={800} height={600} rotX={rot.x} rotY={rot.y} zoom={zoom} />}
+                                </div>
+                                {/* Zoom Control */}
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur border border-slate-200 p-2 rounded-full shadow-md flex items-center gap-3 w-48">
+                                    <Icon path={icons.zoom} size={16} className="text-slate-400" />
+                                    <input type="range" min="0.5" max="2" step="0.1" value={zoom} onChange={(e) => setZoom(parseFloat(e.target.value))} className="w-full text-slate-500" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-3">
+                            <div className={`rounded-xl shadow-sm border overflow-hidden h-full ${view==='2d' ? 'bg-emerald-50/30 border-emerald-100' : 'bg-blue-50/30 border-blue-100'}`}>
+                                <div className={`px-5 py-4 border-b flex items-center gap-2 ${view==='2d' ? 'bg-emerald-100/50 border-emerald-200 text-emerald-800' : 'bg-blue-100/50 border-blue-200 text-blue-800'}`}>
+                                    <Icon path={icons.info} size={18} />
+                                    <h3 className="text-sm font-bold uppercase">Resultats</h3>
+                                </div>
+                                <div className="p-5 space-y-4">
+                                    {results.map((r, i) => (
+                                        <div key={i} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                            <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{r.label}</div>
+                                            <div className="flex justify-between items-end">
+                                                <div className="text-2xl font-bold text-slate-700 font-mono">
+                                                    {r.val.toFixed(2)} <span className="text-sm text-slate-400">{r.label.includes('Volum') ? 'cm³' : (r.label.includes('Àrea') || r.label.includes('Sup') ? 'cm²' : 'cm')}</span>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 pt-2 border-t border-slate-100 text-xs font-mono text-slate-500 bg-slate-50 p-1.5 rounded text-center">
+                                                Fórmula: {r.formula}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
