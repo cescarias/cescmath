@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratori d'Anàlisi de Funcions - Batxillerat</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { background-color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .katex { font-size: 1.1em; }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+        .math-key { transition: all 0.1s; }
+        .math-key:active { transform: scale(0.95); background-color: #e0e7ff; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- ICONS ---
+        const Icon = ({ path, size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d={path} />
+            </svg>
+        );
+
+        const icons = {
+            function: "M3 3h18v18H3z M3 12h18 M12 3v18 M8 16c2-4 4-4 8 0",
+            limit: "M13 17h6 M13 13h6 M16 9l3 4-3 4 M5 17h.01 M5 13h.01 M5 9h.01",
+            derivative: "M3 21l6-6 4 4 8-8",
+            integral: "M9 4c0 4 6 4 6 8s-6 4-6 8",
+            full: "M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18",
+            formula: "M8 6h10M8 12h10M8 18h10M4 6h1M4 12h1M4 18h1",
+            info: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+            close: "M18 6 6 18 M6 6 18 18",
+            zoomIn: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7",
+            zoomOut: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6",
+            grid: "M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18",
+            ruler: "M2 12h20 M12 2v20",
+            plus: "M12 5v14 M5 12h14",
+            trash: "M3 6h18 M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6 M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2",
+            table: "M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18",
+            analysis: "M3 3v18h18 M14 9l-3 3-3-3"
+        };
+
+        // --- MATH ENGINE & PARSING ---
+        const preprocessInput = (str) => {
+            if (!str) return '0';
+            let s = str.toLowerCase().replace(/\s+/g, '');
+            s = s.replace(/\^/g, '**');
+            s = s.replace(/sin/g, 'Math.sin').replace(/cos/g, 'Math.cos').replace(/tan/g, 'Math.tan');
+            s = s.replace(/log/g, 'Math.log10').replace(/ln/g, 'Math.log');
+            s = s.replace(/sqrt/g, 'Math.sqrt').replace(/pi/g, 'Math.PI').replace(/e/g, 'Math.E');
+            s = s.replace(/([0-9])([a-z(])/g, '$1*$2').replace(/\)([\w(])/g, ')*$1');
+            return s;
+        };
+
+        const formatToLatex = (str) => {
+            if (!str) return '';
+            let s = str;
+            s = s.replace(/sqrt\(([^)]+)\)/g, '\\sqrt{$1}');
+            s = s.replace(/pi/g, '\\pi');
+            s = s.replace(/\*/g, ' \\cdot ');
+            s = s.replace(/sin/g, '\\sin');
+            s = s.replace(/cos/g, '\\cos');
+            s = s.replace(/tan/g, '\\tan');
+            s = s.replace(/log/g, '\\log');
+            s = s.replace(/ln/g, '\\ln');
+            s = s.replace(/abs\(([^)]+)\)/g, '|$1|');
+            s = s.replace(/\^/g, '^');
+            return s;
+        };
+
+        const evaluate = (expr, x) => {
+            try { return new Function('x', `return ${expr}`)(x); } catch (e) { return NaN; }
+        };
+
+        const evaluatePiecewise = (pieces, x) => {
+            for (let p of pieces) {
+                const min = p.min === "" || p.min === null ? -Infinity : parseFloat(p.min);
+                const max = p.max === "" || p.max === null ? Infinity : parseFloat(p.max);
+                if (x >= min && x < max) {
+                    return evaluate(preprocessInput(p.expr), x);
+                }
+            }
+            return NaN;
+        };
+
+        const numericDerivative = (expr, x, h=0.0001, isPiecewise=false, pieces=[]) => {
+            const f = isPiecewise ? (v) => evaluatePiecewise(pieces, v) : (v) => evaluate(expr, v);
+            return (f(x+h) - f(x-h)) / (2*h);
+        };
+        
+        const numericIntegral = (expr, a, b, n=500, isPiecewise=false, pieces=[]) => {
+            const h = (b-a)/n;
+            const f = isPiecewise ? (v) => evaluatePiecewise(pieces, v) : (v) => evaluate(expr, v);
+            let sum = 0.5 * (f(a) + f(b));
+            for(let i=1; i<n; i++) sum += f(a + i*h);
+            return sum * h;
+        };
+
+        const findRoots = (expr, min, max, isPiecewise=false, pieces=[]) => {
+            const f = isPiecewise ? (v) => evaluatePiecewise(pieces, v) : (v) => evaluate(expr, v);
+            const roots = [];
+            let prevY = f(min);
+            const step = (max-min)/400;
+            for(let x=min; x<=max; x+=step) {
+                const y = f(x);
+                if (Math.sign(y) !== Math.sign(prevY) && Math.abs(y-prevY) < 10) { 
+                    const r = x - y * (step / (y - prevY));
+                    if (!isNaN(r)) roots.push(r);
+                }
+                prevY = y;
+            }
+            return roots;
+        };
+
+        // --- ADVANCED ANALYSIS ---
+        const analyzeGlobalProperties = (funcStr, pieces, funcMode) => {
+            const f = (x) => funcMode === 'simple' ? evaluate(preprocessInput(funcStr), x) : evaluatePiecewise(pieces, x);
+            
+            // 1. Domain Analysis (Global Heuristic)
+            // Check large range for existence and sign changes
+            let hasPositiveDef = !isNaN(f(100)) || !isNaN(f(1000));
+            let hasNegativeDef = !isNaN(f(-100)) || !isNaN(f(-1000));
+            
+            let domText = "\\mathbb{R}";
+            const discontinuities = [];
+            
+            // Scan for holes/vertical asymptotes
+            let prevY = f(-100);
+            for(let x = -50; x <= 50; x+=0.1) {
+                const y = f(x);
+                if (!isFinite(y) && isFinite(prevY) && isFinite(f(x+0.2))) {
+                    // Possible vertical asymptote or hole
+                    discontinuities.push(Math.round(x));
+                }
+                prevY = y;
+            }
+            
+            // Heuristic for sqrt(x) or log(x) types
+            if (hasPositiveDef && !hasNegativeDef) domText = "[0, +\\infty)";
+            else if (!hasPositiveDef && hasNegativeDef) domText = "(-\\infty, 0]";
+            else if (discontinuities.length > 0) {
+                const uniqueDis = [...new Set(discontinuities)];
+                domText = `\\mathbb{R} \\setminus \\{${uniqueDis.join(', ')}\\}`;
+            }
+
+            // 2. Range (Recorregut) Analysis using Limits at Infinity
+            const infVal = 100000;
+            const limPos = f(infVal);
+            const limNeg = f(-infVal);
+            
+            let minY = Infinity;
+            let maxY = -Infinity;
+            
+            // Scan internal extrema
+            for(let x = -100; x <= 100; x += 0.5) {
+                const y = f(x);
+                if (isFinite(y)) {
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+            
+            // Incorporate limits at infinity
+            const checkLimit = (val) => {
+                if (val > 1000) return Infinity;
+                if (val < -1000) return -Infinity;
+                return val;
+            };
+
+            const lPos = checkLimit(limPos);
+            const lNeg = checkLimit(limNeg);
+            
+            let rangeText = "";
+            if (lPos === Infinity || lNeg === Infinity) maxY = Infinity;
+            if (lPos === -Infinity || lNeg === -Infinity) minY = -Infinity;
+
+            // Refine numerical bounds
+            if (isFinite(lPos) && lPos > maxY) maxY = lPos;
+            if (isFinite(lNeg) && lNeg > maxY) maxY = lNeg;
+            if (isFinite(lPos) && lPos < minY) minY = lPos;
+            if (isFinite(lNeg) && lNeg < minY) minY = lNeg;
+
+            if (minY === -Infinity && maxY === Infinity) rangeText = "\\mathbb{R}";
+            else if (minY !== -Infinity && maxY === Infinity) rangeText = `[${minY.toFixed(2)}, +\\infty)`;
+            else if (minY === -Infinity && maxY !== -Infinity) rangeText = `(-\\infty, ${maxY.toFixed(2)}]`;
+            else rangeText = `[${minY.toFixed(2)}, ${maxY.toFixed(2)}]`; // Approximate
+
+            return { domText, rangeText, discontinuities, limPos: lPos, limNeg: lNeg };
+        };
+
+
+        // --- COMPONENTS ---
+        const Latex = ({ children, block = false }) => {
+            const containerRef = useRef(null);
+            useEffect(() => {
+                if (window.katex && containerRef.current) {
+                    try {
+                        let content = Array.isArray(children) ? children.join('') : String(children);
+                        window.katex.render(content, containerRef.current, { throwOnError: false, displayMode: block });
+                    } catch (e) { containerRef.current.innerText = String(children); }
+                }
+            }, [children, block]);
+            return <span ref={containerRef} />;
+        };
+
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-[fadeIn_0.2s_ease-out]">
+                        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icon path={icons.info} /> {title}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><Icon path={icons.close} /></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto custom-scrollbar text-slate-700 leading-relaxed text-sm">
+                            {children}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const FunctionDisplay = ({ funcMode, funcStr, pieces }) => {
+            let tex = "";
+            if (funcMode === 'simple') {
+                tex = `f(x) = ${formatToLatex(funcStr)}`;
+            } else {
+                const cases = pieces.map(p => {
+                    const cond = `${p.min === "" ? "-\\infty" : p.min} \\le x < ${p.max === "" ? "\\infty" : p.max}`;
+                    return `${formatToLatex(p.expr)} & \\text{si } ${cond}`;
+                }).join(' \\\\ ');
+                tex = `f(x) = \\begin{cases} ${cases} \\end{cases}`;
+            }
+            return (
+                <div className="bg-white border-2 border-indigo-100 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-center min-h-[80px]">
+                    <div className="text-xl text-slate-800 font-serif">
+                        <Latex>{tex}</Latex>
+                    </div>
+                </div>
+            );
+        };
+
+        const MathKeyboard = ({ onInsert }) => {
+            const keys = [
+                { label: "x", val: "x" }, 
+                { label: "^2", val: "^2" }, 
+                { label: "^n", val: "^" }, 
+                { label: "a/b", val: "() / ()" },
+                { label: "√", val: "sqrt(" },
+                { label: "ⁿ√", val: "^(1/" }, 
+                { label: "+", val: "+" }, 
+                { label: "-", val: "-" }, 
+                { label: "*", val: "*" },
+                { label: "/", val: "/" },
+                { label: "( )", val: "()" },
+                { label: "sin", val: "sin(" }, 
+                { label: "cos", val: "cos(" },
+                { label: "ln", val: "ln(" }, 
+                { label: "e^x", val: "e^" }, 
+                { label: "π", val: "pi" }, 
+                { label: "|x|", val: "abs(" }
+            ];
+            
+            return (
+                <div className="grid grid-cols-4 md:grid-cols-6 gap-2 bg-slate-100 p-3 rounded-lg border border-slate-200 mt-2">
+                    {keys.map((k, i) => (
+                        <button key={i} onClick={() => onInsert(k.val)} className="bg-white p-2 rounded border border-slate-300 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 math-key shadow-sm flex justify-center items-center h-10">
+                            {k.label}
+                        </button>
+                    ))}
+                </div>
+            );
+        };
+
+        const Graph2D = ({ funcMode, funcStr, pieces, showDerivative, showIntegral, integA, integB, tanX, width, height }) => {
+            const [scale, setScale] = useState(40); 
+            const [offsetX, setOffsetX] = useState(width/2);
+            const [offsetY, setOffsetY] = useState(height/2);
+            const [drag, setDrag] = useState({ active: false, x: 0, y: 0 });
+            const [showGrid, setShowGrid] = useState(true);
+            const [showScale, setShowScale] = useState(true);
+
+            const toScreenX = (x) => offsetX + x * scale;
+            const toScreenY = (y) => offsetY - y * scale;
+
+            const handleWheel = (e) => {
+                e.preventDefault();
+                const newScale = Math.max(10, Math.min(300, scale * (1 - e.deltaY * 0.001)));
+                setScale(newScale);
+            };
+
+            const f = (x) => {
+                if (funcMode === 'simple') return evaluate(preprocessInput(funcStr), x);
+                return evaluatePiecewise(pieces, x);
+            };
+
+            const generatePath = () => {
+                let d = "";
+                const startX = -offsetX / scale;
+                const endX = (width - offsetX) / scale;
+                const step = 2 / scale;
+                let moveTo = true;
+                
+                for(let x = startX; x <= endX; x += step) {
+                    const y = f(x);
+                    if (isNaN(y) || !isFinite(y) || Math.abs(y) > 1000) { moveTo = true; continue; }
+                    const sx = toScreenX(x);
+                    const sy = toScreenY(y);
+                    if (moveTo) { d += `M ${sx} ${sy} `; moveTo = false; }
+                    else { 
+                        const prevY = f(x-step);
+                        if(Math.abs(y-prevY) > 500) { d += `M ${sx} ${sy} `; } 
+                        else { d += `L ${sx} ${sy} `; }
+                    }
+                }
+                return d;
+            };
+
+            const generateArea = () => {
+                let d = "";
+                if (integA === undefined || integB === undefined) return "";
+                const step = (integB - integA) / 100;
+                const startSx = toScreenX(integA);
+                const startSy = toScreenY(0);
+                d += `M ${startSx} ${startSy} `;
+                for(let x=integA; x<=integB; x+=step) {
+                    const y = f(x);
+                    if(!isNaN(y) && isFinite(y)) d += `L ${toScreenX(x)} ${toScreenY(y)} `;
+                }
+                d += `L ${toScreenX(integB)} ${toScreenY(0)} Z`;
+                return d;
+            };
+
+            const generateTangent = () => {
+                if (tanX === undefined) return null;
+                const y0 = f(tanX);
+                const h = 0.0001;
+                const m = (f(tanX+h) - f(tanX-h)) / (2*h);
+                const b = y0 - m*tanX;
+                const x1 = -100; const y1 = m*x1 + b;
+                const x2 = 100; const y2 = m*x2 + b;
+                return <line x1={toScreenX(x1)} y1={toScreenY(y1)} x2={toScreenX(x2)} y2={toScreenY(y2)} stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5"/>;
+            };
+
+            return (
+                <div className="relative bg-white border rounded-xl overflow-hidden shadow-inner cursor-move" style={{height: height}}
+                     onWheel={handleWheel}
+                     onMouseDown={e => setDrag({active:true, x:e.clientX, y:e.clientY})}
+                     onMouseMove={e => {
+                         if(drag.active) {
+                             setOffsetX(offsetX + e.clientX - drag.x);
+                             setOffsetY(offsetY + e.clientY - drag.y);
+                             setDrag({...drag, x:e.clientX, y:e.clientY});
+                         }
+                     }}
+                     onMouseUp={() => setDrag({...drag, active:false})}
+                     onMouseLeave={() => setDrag({...drag, active:false})}
+                >
+                    <svg width="100%" height="100%">
+                        {showGrid && <defs><pattern id="grid" width={scale} height={scale} patternUnits="userSpaceOnUse"><path d={`M ${scale} 0 L 0 0 0 ${scale}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/></pattern></defs>}
+                        {showGrid && <rect width="100%" height="100%" fill="url(#grid)" />}
+                        
+                        <line x1="0" y1={offsetY} x2={width} y2={offsetY} stroke="#334155" strokeWidth="2" />
+                        <line x1={offsetX} y1="0" x2={offsetX} y2={height} stroke="#334155" strokeWidth="2" />
+                        
+                        {showScale && <g className="text-xs fill-slate-400 font-mono select-none">
+                            {(() => {
+                                const start = Math.floor(-offsetX / scale);
+                                const end = Math.ceil((width - offsetX) / scale);
+                                const ticks = [];
+                                for (let i = start; i <= end; i++) {
+                                    if(i===0) continue;
+                                    ticks.push(<g key={`x${i}`}><line x1={toScreenX(i)} y1={offsetY-3} x2={toScreenX(i)} y2={offsetY+3} stroke="#94a3b8"/><text x={toScreenX(i)} y={offsetY + 15} textAnchor="middle">{i}</text></g>);
+                                }
+                                return ticks;
+                            })()}
+                            {(() => {
+                                const start = Math.floor(-(height - offsetY) / scale);
+                                const end = Math.ceil(offsetY / scale);
+                                const ticks = [];
+                                for (let i = start; i <= end; i++) {
+                                    if(i===0) continue;
+                                    ticks.push(<g key={`y${i}`}><line x1={offsetX-3} y1={toScreenY(i)} x2={offsetX+3} y2={toScreenY(i)} stroke="#94a3b8"/><text x={offsetX + 12} y={toScreenY(i)+4}>{i}</text></g>);
+                                }
+                                return ticks;
+                            })()}
+                        </g>}
+
+                        {showIntegral && <path d={generateArea()} fill="#10b981" fillOpacity="0.3" stroke="none" />}
+                        <path d={generatePath()} fill="none" stroke="#3b82f6" strokeWidth="3" />
+                        {showDerivative && generateTangent()}
+                        {showDerivative && <circle cx={toScreenX(tanX)} cy={toScreenY(f(tanX))} r="4" fill="#ef4444" />}
+                    </svg>
+                    
+                    <div className="absolute top-2 right-2 flex gap-1 z-10">
+                        <button className={`p-1.5 rounded border shadow ${showGrid?'bg-indigo-100 text-indigo-700':'bg-white text-slate-400'}`} onClick={()=>setShowGrid(!showGrid)} title="Quadrícula"><Icon path={icons.grid} size={16}/></button>
+                        <button className={`p-1.5 rounded border shadow ${showScale?'bg-indigo-100 text-indigo-700':'bg-white text-slate-400'}`} onClick={()=>setShowScale(!showScale)} title="Escala"><Icon path={icons.ruler} size={16}/></button>
+                        <div className="w-px bg-slate-300 mx-1"></div>
+                        <button className="p-1.5 bg-white/80 rounded border shadow" onClick={()=>setScale(scale*1.2)}><Icon path={icons.zoomIn} size={16}/></button>
+                        <button className="p-1.5 bg-white/80 rounded border shadow" onClick={()=>setScale(scale/1.2)}><Icon path={icons.zoomOut} size={16}/></button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- TABS ---
+
+        const FunctionsTab = ({ funcMode, funcStr, pieces }) => {
+            const [expl, setExpl] = useState(null);
+            const [stats, setStats] = useState({});
+
+            const f = (x) => funcMode === 'simple' ? evaluate(preprocessInput(funcStr), x) : evaluatePiecewise(pieces, x);
+
+            useEffect(() => {
+                const props = analyzeGlobalProperties(funcStr, pieces, funcMode);
+                const f0 = f(0);
+                const roots = findRoots(preprocessInput(funcStr), -20, 20, funcMode==='piecewise', pieces);
+                
+                // Simetria (Check random points for robustness)
+                let isEven = true;
+                let isOdd = true;
+                for(let t of [1, 2, 5, 0.5]) {
+                    if (Math.abs(f(t) - f(-t)) > 0.01) isEven = false;
+                    if (Math.abs(f(t) + f(-t)) > 0.01) isOdd = false;
+                }
+                let sym = "Cap";
+                if (isEven) sym = "Parell";
+                else if (isOdd) sym = "Senar";
+
+                setStats({ f0, roots, sym, dom: props.domText, range: props.rangeText });
+            }, [funcMode, funcStr, pieces]);
+
+            const showProcedure = () => {
+                setExpl(
+                    <div className="space-y-4">
+                        <h4 className="font-bold text-indigo-700 border-b pb-2">Justificació: Característiques Generals</h4>
+                        <div className="space-y-4">
+                            <div>
+                                <h5 className="font-bold text-slate-700">1. Domini i Recorregut</h5>
+                                <p><strong>Domini:</strong> Conjunt de valors on <Latex inline>f(x)</Latex> existeix. <Latex inline>{stats.dom}</Latex>.</p>
+                                <p><strong>Recorregut (Imatge):</strong> Conjunt de valors que pren <Latex inline>f(x)</Latex>. <Latex inline>{stats.range}</Latex>.</p>
+                            </div>
+                            <div>
+                                <h5 className="font-bold text-slate-700">2. Punts de Tall</h5>
+                                <p><strong>Tall Eix Y:</strong> Avaluem <Latex inline>x=0</Latex>: <Latex block>{`f(0) = ${isNaN(stats.f0)?'\\text{Indef}':stats.f0.toFixed(4)}`}</Latex></p>
+                                <p><strong>Talls Eix X:</strong> Resolem <Latex inline>f(x)=0</Latex>. Solucions aproximades: {stats.roots && stats.roots.length > 0 ? stats.roots.map(r=>r.toFixed(2)).join(', ') : 'Cap en l\'interval'}.</p>
+                            </div>
+                            <div>
+                                <h5 className="font-bold text-slate-700">3. Simetria</h5>
+                                <p>Comprovem la paritat calculant <Latex inline>f(-x)</Latex>:</p>
+                                <ul className="list-disc pl-5">
+                                    <li>Si <Latex inline>f(-x) = f(x)</Latex> <Latex inline>\\rightarrow</Latex> Parell (Simetria Eix Y).</li>
+                                    <li>Si <Latex inline>f(-x) = -f(x)</Latex> <Latex inline>\\rightarrow</Latex> Senar (Simetria Origen).</li>
+                                    <li>Resultat observat: <strong>{stats.sym}</strong>.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                    <Modal isOpen={!!expl} onClose={()=>setExpl(null)} title="Justificació de Característiques">{expl}</Modal>
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 flex flex-col">
+                        <h4 className="font-bold text-slate-700 uppercase text-sm border-b pb-2">Anàlisi Ràpid</h4>
+                        <FunctionDisplay funcMode={funcMode} funcStr={funcStr} pieces={pieces} />
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm space-y-2 flex-1">
+                            <div><strong>Domini:</strong> <Latex>{stats.dom}</Latex></div>
+                            <div><strong>Recorregut:</strong> <Latex>{stats.range}</Latex></div>
+                            <div><strong>Tall Y:</strong> {stats.f0 !== undefined && !isNaN(stats.f0) ? `(0, ${stats.f0.toFixed(2)})` : 'No existeix'}</div>
+                            <div><strong>Talls X:</strong> {stats.roots && stats.roots.length > 0 ? stats.roots.map(r=>r.toFixed(2)).join(', ') : 'Cap'}</div>
+                            <div><strong>Simetria:</strong> {stats.sym}</div>
+                        </div>
+                        <button onClick={showProcedure} className="w-full py-2 bg-indigo-600 text-white rounded font-bold text-xs hover:bg-indigo-700">Veure Justificació</button>
+                    </div>
+                    <div className="lg:col-span-2 h-[500px]">
+                        <Graph2D funcMode={funcMode} funcStr={funcStr} pieces={pieces} width={800} height={500} />
+                    </div>
+                </div>
+            );
+        };
+
+        const LimitsTab = ({ funcMode, funcStr, pieces }) => {
+            const [x0, setX0] = useState(0);
+            const [expl, setExpl] = useState(null);
+            
+            const f = (x) => funcMode === 'simple' ? evaluate(preprocessInput(funcStr), x) : evaluatePiecewise(pieces, x);
+            
+            const limLeft = f(x0 - 0.00001);
+            const limRight = f(x0 + 0.00001);
+            const val = f(x0);
+            
+            const formatLimit = (v) => {
+                if (Math.abs(v) > 1000) return v > 0 ? "+\\infty" : "-\\infty";
+                return v.toFixed(4);
+            }
+
+            // Check continuity more robustly (considering infinite limits)
+            const isCont = Math.abs(limLeft - limRight) < 0.1 && Math.abs(val - limLeft) < 0.1 && isFinite(val) && Math.abs(limLeft) < 1000;
+
+            const showProcedure = () => {
+                setExpl(
+                    <div className="space-y-4">
+                        <h4 className="font-bold text-indigo-700 border-b pb-2">Justificació: Límits i Continuïtat</h4>
+                        <p>Estudiem la continuïtat en el punt <Latex inline>{`x = ${x0}`}</Latex>.</p>
+                        <div className="bg-slate-50 p-3 rounded text-center text-sm">
+                            <p>1. Límit per l'esquerra: <Latex block>{`\\lim_{x \\to ${x0}^-} f(x) \\approx ${formatLimit(limLeft)}`}</Latex></p>
+                            <p>2. Límit per la dreta: <Latex block>{`\\lim_{x \\to ${x0}^+} f(x) \\approx ${formatLimit(limRight)}`}</Latex></p>
+                            <p>3. Valor de la funció: <Latex block>{`f(${x0}) = ${isNaN(val) ? "\\text{No definit}" : val.toFixed(4)}`}</Latex></p>
+                        </div>
+                        <div className="border-l-4 border-emerald-500 pl-3">
+                            <p className="font-bold">Condició de Continuïtat:</p>
+                            <Latex block>{`\\lim_{x \\to a^-} f(x) = \\lim_{x \\to a^+} f(x) = f(a)`}</Latex>
+                            <p className="mt-2">En aquest cas: {isCont ? 
+                                <span className="text-emerald-600 font-bold">Es compleix. La funció és contínua.</span> : 
+                                <span className="text-red-600 font-bold">No es compleix. Discontínua.</span>
+                            }</p>
+                            {!isCont && (Math.abs(limLeft) > 1000 || Math.abs(limRight) > 1000) && 
+                                <p className="text-xs text-slate-500 mt-1">Detectada asímptota vertical o salt infinit.</p>
+                            }
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                    <Modal isOpen={!!expl} onClose={()=>setExpl(null)} title="Procediment Límits">{expl}</Modal>
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 flex flex-col">
+                        <h4 className="font-bold text-slate-700 uppercase text-sm border-b pb-2">Càlcul de Límit</h4>
+                        <FunctionDisplay funcMode={funcMode} funcStr={funcStr} pieces={pieces} />
+                        <label className="block font-bold text-slate-700 text-sm">Punt a estudiar (x0)</label>
+                        <input type="number" value={x0} onChange={e=>setX0(parseFloat(e.target.value))} className="w-full p-2 border rounded font-mono" />
+                        
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm space-y-2 flex-1">
+                            <div><strong>Límit Esq:</strong> <Latex inline>{formatLimit(limLeft)}</Latex></div>
+                            <div><strong>Límit Dre:</strong> <Latex inline>{formatLimit(limRight)}</Latex></div>
+                            <div><strong>Imatge f({x0}):</strong> {isNaN(val) ? 'Indef' : val.toFixed(4)}</div>
+                            <div className={`font-bold p-2 rounded text-center ${isCont?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{isCont ? "Contínua" : "Discontínua"}</div>
+                        </div>
+                        <button onClick={showProcedure} className="w-full py-2 bg-indigo-600 text-white rounded font-bold text-xs hover:bg-indigo-700">Veure Justificació</button>
+                    </div>
+                    <div className="lg:col-span-2 h-[500px]">
+                        <Graph2D funcMode={funcMode} funcStr={funcStr} pieces={pieces} tanX={x0} showDerivative={false} width={800} height={500} />
+                    </div>
+                </div>
+            );
+        };
+
+        const DerivTab = ({ funcMode, funcStr, pieces }) => {
+            const [x0, setX0] = useState(1);
+            const [expl, setExpl] = useState(null);
+            
+            const f = (x) => funcMode === 'simple' ? evaluate(preprocessInput(funcStr), x) : evaluatePiecewise(pieces, x);
+            
+            const fVal = f(x0);
+            const slope = numericDerivative(null, x0, 0.0001, funcMode==='piecewise', pieces);
+            const b = fVal - slope * x0;
+
+            const showProcedure = () => {
+                setExpl(
+                    <div className="space-y-4">
+                        <h4 className="font-bold text-indigo-700 border-b pb-2">Justificació: Derivada i Recta Tangent</h4>
+                        <p>La derivada <Latex inline>{`f'(a)`}</Latex> representa el pendent de la recta tangent en el punt <Latex inline>{`a`}</Latex>.</p>
+                        <p><strong>1. Càlcul del pendent (m):</strong></p>
+                        <p className="text-sm">Aproximem el límit de la definició de derivada:</p>
+                        <div className="bg-slate-50 p-2 rounded text-center"><Latex block>{`m \\approx \\frac{f(a+h)-f(a-h)}{2h} = ${slope.toFixed(4)}`}</Latex></div>
+                        <p><strong>2. Equació Punt-Pendent:</strong></p>
+                        <Latex block>{`y - f(a) = m \\cdot (x - a)`}</Latex>
+                        <p>Substituint <Latex inline>{`a=${x0}, f(a)=${fVal.toFixed(2)}, m=${slope.toFixed(2)}`}</Latex>:</p>
+                        <div className="bg-emerald-50 p-3 rounded border border-emerald-200 text-center font-bold">
+                            <Latex block>{`y = ${slope.toFixed(2)}x ${b>=0?'+':''} ${b.toFixed(2)}`}</Latex>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                    <Modal isOpen={!!expl} onClose={()=>setExpl(null)} title="Procediment Derivada">{expl}</Modal>
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 flex flex-col">
+                        <h4 className="font-bold text-slate-700 uppercase text-sm border-b pb-2">Derivada en un Punt</h4>
+                        <FunctionDisplay funcMode={funcMode} funcStr={funcStr} pieces={pieces} />
+                        <label className="block font-bold text-slate-700 text-sm">Punt x0 (Tangent)</label>
+                        <input type="number" value={x0} onChange={e=>setX0(parseFloat(e.target.value))} className="w-full p-2 border rounded font-mono" />
+                        
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm space-y-2 flex-1">
+                            <div><strong>f({x0}):</strong> {fVal.toFixed(4)}</div>
+                            <div><strong>Pendent f'({x0}):</strong> {slope.toFixed(4)}</div>
+                            <div><strong>Eq. Tangent:</strong> y = {slope.toFixed(2)}x {b>=0?'+':''} {b.toFixed(2)}</div>
+                        </div>
+                        <button onClick={showProcedure} className="w-full py-2 bg-indigo-600 text-white rounded font-bold text-xs hover:bg-indigo-700">Veure Justificació</button>
+                    </div>
+                    <div className="lg:col-span-2 h-[500px]">
+                        <Graph2D funcMode={funcMode} funcStr={funcStr} pieces={pieces} tanX={x0} showDerivative={true} width={800} height={500} />
+                    </div>
+                </div>
+            );
+        };
+
+        const IntegralTab = ({ funcMode, funcStr, pieces }) => {
+            const [a, setA] = useState(0);
+            const [b, setB] = useState(2);
+            const [expl, setExpl] = useState(null);
+            
+            const area = numericIntegral(preprocessInput(funcStr), a, b, 500, funcMode==='piecewise', pieces);
+
+            const showProcedure = () => {
+                setExpl(
+                    <div className="space-y-4">
+                        <h4 className="font-bold text-indigo-700 border-b pb-2">Justificació: Integral Definida</h4>
+                        <p>La integral definida <Latex inline>{`\\int_a^b f(x) dx`}</Latex> calcula l'àrea neta entre la funció i l'eix X en l'interval <Latex inline>{`[${a}, ${b}]`}</Latex>.</p>
+                        <p><strong>Teorema Fonamental del Càlcul (Regla de Barrow):</strong></p>
+                        <div className="text-center bg-slate-50 p-2 rounded"><Latex block>{`Area = F(b) - F(a)`}</Latex></div>
+                        <p>On <Latex inline>F(x)</Latex> és una primitiva de <Latex inline>f(x)</Latex>.</p>
+                        <p><strong>Càlcul Numèric (Trapezi):</strong></p>
+                        <p>Dividim l'interval en segments petits i sumem les àrees.</p>
+                        <div className="bg-emerald-50 p-3 rounded border border-emerald-200 text-center font-bold text-emerald-800 text-lg">
+                            <Latex block>{`\\int_{${a}}^{${b}} f(x) dx \\approx ${area.toFixed(5)} u^2`}</Latex>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                    <Modal isOpen={!!expl} onClose={()=>setExpl(null)} title="Procediment Integral">{expl}</Modal>
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 flex flex-col">
+                        <h4 className="font-bold text-slate-700 uppercase text-sm border-b pb-2">Integral Definida</h4>
+                        <FunctionDisplay funcMode={funcMode} funcStr={funcStr} pieces={pieces} />
+                        <div className="flex gap-4">
+                            <label className="block font-bold text-slate-700 text-sm">Inici [a] <input type="number" value={a} onChange={e=>setA(parseFloat(e.target.value))} className="w-full p-2 border rounded font-mono mt-1" /></label>
+                            <label className="block font-bold text-slate-700 text-sm">Fi [b] <input type="number" value={b} onChange={e=>setB(parseFloat(e.target.value))} className="w-full p-2 border rounded font-mono mt-1" /></label>
+                        </div>
+                        
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm space-y-2 text-center flex-1">
+                            <div className="text-xs font-bold uppercase text-slate-400">Àrea Aproximada</div>
+                            <div className="text-3xl font-mono text-indigo-800 font-bold">{area.toFixed(5)}</div>
+                            <div className="text-xs text-slate-400">Unitats quadrades</div>
+                        </div>
+                        <button onClick={showProcedure} className="w-full py-2 bg-indigo-600 text-white rounded font-bold text-xs hover:bg-indigo-700">Veure Justificació</button>
+                    </div>
+                    <div className="lg:col-span-2 h-[500px]">
+                        <Graph2D funcMode={funcMode} funcStr={funcStr} pieces={pieces} showIntegral={true} integA={a} integB={b} width={800} height={500} />
+                    </div>
+                </div>
+            );
+        };
+
+        const FullStudyTab = ({ funcMode, funcStr, pieces }) => {
+            const [expl, setExpl] = useState(null);
+
+            const calculateStudy = () => {
+                const f = (x) => funcMode === 'simple' ? evaluate(preprocessInput(funcStr), x) : evaluatePiecewise(pieces, x);
+                const df = (x) => (f(x+0.0001) - f(x-0.0001)) / 0.0002;
+                const d2f = (x) => (f(x+0.001) - 2*f(x) + f(x-0.001)) / 0.000001;
+
+                // Call the new Global Analysis
+                const props = analyzeGlobalProperties(funcStr, pieces, funcMode);
+
+                const extrema = [];
+                const inflexion = [];
+                
+                let prevD = df(-20), prevD2 = d2f(-20);
+                
+                // Scan for local extrema in visible range
+                for(let x=-20; x<=20; x+=0.1) {
+                    const y = f(x);
+                    const d = df(x);
+                    if (Math.sign(d) !== Math.sign(prevD) && Math.abs(d-prevD) < 10 && isFinite(y)) {
+                        extrema.push({x, type: prevD < 0 ? 'Mínim' : 'Màxim', y});
+                    }
+                    
+                    const d2 = d2f(x);
+                    if (Math.sign(d2) !== Math.sign(prevD2) && Math.abs(d2-prevD2) < 10 && isFinite(y)) {
+                        inflexion.push({x, y});
+                    }
+                    
+                    prevD = d; prevD2 = d2;
+                }
+
+                return (
+                    <div className="space-y-8 font-sans">
+                        <FunctionDisplay funcMode={funcMode} funcStr={funcStr} pieces={pieces} />
+                        <div>
+                            <h4 className="font-bold text-indigo-700 text-lg border-b pb-2 mb-2">1. Domini i Asímptotes</h4>
+                            <ul className="list-disc pl-5 space-y-1">
+                                <li><strong>Domini:</strong> <Latex inline>{props.domText}</Latex></li>
+                                <li><strong>Recorregut (Global):</strong> <Latex inline>{props.rangeText}</Latex></li>
+                                <li><strong>A. Verticals:</strong> {props.discontinuities.length ? `Possibles en x=${props.discontinuities.join(', ')}` : "No detectades en el rang [-50, 50]"}</li>
+                                <li><strong>Comportament a l'infinit (A. Horitzontals):</strong> 
+                                    <ul className="pl-4 list-circle">
+                                        <li><Latex inline>{`\\lim_{x \\to -\\infty} f(x) = ${isFinite(props.limNeg) ? props.limNeg.toFixed(2) : (props.limNeg > 0 ? "+\\infty" : "-\\infty")}`}</Latex></li>
+                                        <li><Latex inline>{`\\lim_{x \\to +\\infty} f(x) = ${isFinite(props.limPos) ? props.limPos.toFixed(2) : (props.limPos > 0 ? "+\\infty" : "-\\infty")}`}</Latex></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-indigo-700 text-lg border-b pb-2 mb-2">2. Monotonia i Extrems (1a Derivada)</h4>
+                            <p className="text-sm mb-2 text-slate-600">Punts on <Latex inline>{`f'(x) = 0`}</Latex> (en interval [-20, 20]):</p>
+                            {extrema.length > 0 ? (
+                                <ul className="list-disc pl-5">
+                                    {extrema.map((e, i) => <li key={i}><strong>{e.type}</strong> en <Latex inline>{`(${e.x.toFixed(2)}, ${e.y.toFixed(2)})`}</Latex></li>)}
+                                </ul>
+                            ) : <p className="italic text-slate-500">No s'han trobat extrems locals en l'interval central.</p>}
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-indigo-700 text-lg border-b pb-2 mb-2">3. Curvatura (2a Derivada)</h4>
+                            <p className="text-sm mb-2 text-slate-600">Punts on <Latex inline>{`f''(x) = 0`}</Latex> (Inflexió):</p>
+                            {inflexion.length > 0 ? (
+                                <ul className="list-disc pl-5">
+                                    {inflexion.map((e, i) => <li key={i}>Punt d'Inflexió en <Latex inline>{`(${e.x.toFixed(2)}, ${e.y.toFixed(2)})`}</Latex></li>)}
+                                </ul>
+                            ) : <p className="italic text-slate-500">No s'han trobat punts d'inflexió en l'interval central.</p>}
+                            <div className="mt-2 text-sm">
+                                <p><strong>Concavitat ($\cap$):</strong> On <Latex inline>{`f''(x) < 0`}</Latex>.</p>
+                                <p><strong>Convexitat ($\cup$):</strong> On <Latex inline>{`f''(x) > 0`}</Latex>.</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+                    <Modal isOpen={!!expl} onClose={()=>setExpl(null)} title="Informe Complet de la Funció">{expl}</Modal>
+                    <div className="lg:col-span-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center gap-6">
+                        <div className="text-center">
+                            <div className="bg-indigo-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600"><Icon path={icons.full} size={32} /></div>
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">Generar Estudi</h3>
+                            <p className="text-slate-500 text-sm">Analitza automàticament domini, asímptotes, monotonia i curvatura.</p>
+                        </div>
+                        <button onClick={() => setExpl(calculateStudy())} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 text-lg">
+                            <Icon path={icons.analysis} /> Analitzar Funció
+                        </button>
+                    </div>
+                    <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-inner h-[500px]">
+                        <Graph2D funcMode={funcMode} funcStr={funcStr} pieces={pieces} showDerivative={true} tanX={1} width={800} height={500} />
+                    </div>
+                </div>
+            );
+        };
+
+        const TableDerivTab = () => (
+             <div className="p-6 h-full overflow-y-auto custom-scrollbar pb-20">
+                 <h2 className="text-2xl font-bold text-indigo-800 mb-6 flex items-center gap-2"><Icon path={icons.table}/> Taula de Derivades i Regla de la Cadena</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     {/* Basic */}
+                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 className="font-bold text-indigo-700 border-b pb-2 mb-3">Funcions Simples</h3>
+                         <div className="space-y-2 text-sm">
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Constant</span><Latex>{`f(x)=k \\Rightarrow f'(x)=0`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Identitat</span><Latex>{`f(x)=x \\Rightarrow f'(x)=1`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Potència</span><Latex>{`f(x)=x^n \\Rightarrow f'(x)=nx^{n-1}`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Arrel</span><Latex>{`f(x)=\\sqrt{x} \\Rightarrow f'(x)=\\frac{1}{2\\sqrt{x}}`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Exponencial</span><Latex>{`f(x)=e^x \\Rightarrow f'(x)=e^x`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Logaritme</span><Latex>{`f(x)=\\ln x \\Rightarrow f'(x)=\\frac{1}{x}`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1 border-b border-slate-100"><span>Sinus</span><Latex>{`f(x)=\\sin x \\Rightarrow f'(x)=\\cos x`}</Latex></div>
+                            <div className="grid grid-cols-2 py-1"><span>Cosinus</span><Latex>{`f(x)=\\cos x \\Rightarrow f'(x)=-\\sin x`}</Latex></div>
+                         </div>
+                     </div>
+                     {/* Chain Rule */}
+                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 className="font-bold text-emerald-700 border-b pb-2 mb-3">Regla de la Cadena (Compostes)</h3>
+                         <div className="bg-emerald-50 p-2 rounded text-center mb-3 font-bold text-emerald-800"><Latex>{`[f(g(x))]' = f'(g(x)) \\cdot g'(x)`}</Latex></div>
+                         <div className="space-y-2 text-sm">
+                            <div className="grid grid-cols-1 py-1 border-b border-slate-100"><Latex>{`(u^n)' = n u^{n-1} \\cdot u'`}</Latex></div>
+                            <div className="grid grid-cols-1 py-1 border-b border-slate-100"><Latex>{`(\\sqrt{u})' = \\frac{u'}{2\\sqrt{u}}`}</Latex></div>
+                            <div className="grid grid-cols-1 py-1 border-b border-slate-100"><Latex>{`(e^u)' = e^u \\cdot u'`}</Latex></div>
+                            <div className="grid grid-cols-1 py-1 border-b border-slate-100"><Latex>{`(\\ln u)' = \\frac{u'}{u}`}</Latex></div>
+                            <div className="grid grid-cols-1 py-1 border-b border-slate-100"><Latex>{`(\\sin u)' = u' \\cos u`}</Latex></div>
+                            <div className="grid grid-cols-1 py-1 border-b border-slate-100"><Latex>{`(\\cos u)' = -u' \\sin u`}</Latex></div>
+                            <div className="grid grid-cols-1 py-1"><Latex>{`(\\tan u)' = \\frac{u'}{\\cos^2 u} = u'(1+\\tan^2 u)`}</Latex></div>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+        );
+
+        const TableIntegTab = () => (
+             <div className="p-6 h-full overflow-y-auto custom-scrollbar pb-20">
+                 <h2 className="text-2xl font-bold text-amber-800 mb-6 flex items-center gap-2"><Icon path={icons.table}/> Taula d'Integrals Immediates</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 className="font-bold text-amber-700 border-b pb-2 mb-3">Potències i Logaritmes</h3>
+                         <div className="space-y-3 text-sm">
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int k \\, dx = kx + C`}</Latex></div>
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int x^n \\, dx = \\frac{x^{n+1}}{n+1} + C \\quad (n \\neq -1)`}</Latex></div>
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int u' u^n \\, dx = \\frac{u^{n+1}}{n+1} + C`}</Latex></div>
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int \\frac{1}{x} \\, dx = \\ln|x| + C`}</Latex></div>
+                            <div className="py-2"><Latex>{`\\int \\frac{u'}{u} \\, dx = \\ln|u| + C`}</Latex></div>
+                         </div>
+                     </div>
+                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 className="font-bold text-amber-700 border-b pb-2 mb-3">Exponencials i Trigonomètriques</h3>
+                         <div className="space-y-3 text-sm">
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int e^x \\, dx = e^x + C`}</Latex></div>
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int u' e^u \\, dx = e^u + C`}</Latex></div>
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int \\cos x \\, dx = \\sin x + C`}</Latex></div>
+                            <div className="py-2 border-b border-slate-100"><Latex>{`\\int \\sin x \\, dx = -\\cos x + C`}</Latex></div>
+                            <div className="py-2"><Latex>{`\\int \\frac{1}{1+x^2} \\, dx = \\arctan x + C`}</Latex></div>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+        );
+
+        // --- MAIN APP ---
+        const App = () => {
+            const [tab, setTab] = useState('func');
+            
+            // Global Function State
+            const [funcMode, setFuncMode] = useState('simple'); 
+            const [funcStr, setFuncStr] = useState('x^3 - 3x');
+            const [pieces, setPieces] = useState([
+                { expr: '-x', min: -10, max: 0 },
+                { expr: 'x^2', min: 0, max: 10 }
+            ]);
+
+            const handleKeyboard = (val) => {
+                if (funcMode === 'simple') {
+                    setFuncStr(prev => prev + val);
+                }
+            };
+
+            const addPiece = () => setPieces([...pieces, { expr: 'x', min: 0, max: 10 }]);
+            const updatePiece = (i, field, val) => {
+                const newPieces = [...pieces];
+                newPieces[i][field] = field === 'expr' ? val : parseFloat(val);
+                setPieces(newPieces);
+            };
+            const removePiece = (i) => setPieces(pieces.filter((_, idx) => idx !== i));
+
+            // Shared Input Component
+            const FunctionInput = () => (
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block font-bold text-slate-700">Definició de Funció</label>
+                        <div className="flex bg-slate-100 p-1 rounded">
+                            <button onClick={()=>setFuncMode('simple')} className={`px-2 py-1 text-xs rounded transition-all ${funcMode==='simple'?'bg-white shadow text-indigo-700':'text-slate-500 hover:text-slate-700'}`}>Simple</button>
+                            <button onClick={()=>setFuncMode('piecewise')} className={`px-2 py-1 text-xs rounded transition-all ${funcMode==='piecewise'?'bg-white shadow text-indigo-700':'text-slate-500 hover:text-slate-700'}`}>A Trossos</button>
+                        </div>
+                    </div>
+
+                    {funcMode === 'simple' ? (
+                        <input type="text" value={funcStr} onChange={e=>setFuncStr(e.target.value)} className="w-full p-3 border rounded-lg font-mono text-lg text-indigo-700 bg-slate-50 focus:border-indigo-500 outline-none transition-colors shadow-sm" placeholder="ex: x^2 + 1" />
+                    ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+                            {pieces.map((p, i) => (
+                                <div key={i} className="flex gap-2 items-center bg-slate-50 p-2 rounded border border-slate-200">
+                                    <span className="font-mono text-xs text-slate-400">f(x)=</span>
+                                    <input type="text" value={p.expr} onChange={e=>updatePiece(i,'expr',e.target.value)} className="w-full p-1 border rounded font-mono text-sm" placeholder="expr" />
+                                    <span className="text-xs font-bold text-slate-500">si</span>
+                                    <input type="number" value={p.min} onChange={e=>updatePiece(i,'min',e.target.value)} className="w-14 p-1 border rounded text-xs" placeholder="min" />
+                                    <span className="text-xs">≤ x &lt;</span>
+                                    <input type="number" value={p.max} onChange={e=>updatePiece(i,'max',e.target.value)} className="w-14 p-1 border rounded text-xs" placeholder="max" />
+                                    <button onClick={()=>removePiece(i)} className="text-red-400 hover:text-red-600"><Icon path={icons.trash} size={16}/></button>
+                                </div>
+                            ))}
+                            <button onClick={addPiece} className="w-full py-1.5 border-2 border-dashed border-slate-300 rounded text-slate-400 text-xs hover:border-indigo-300 hover:text-indigo-500 flex items-center justify-center gap-1 font-bold transition-colors"><Icon path={icons.plus} size={14}/> Afegir Tram</button>
+                        </div>
+                    )}
+                    
+                    <div className="pt-2 border-t border-slate-100">
+                        <div className="text-xs font-bold text-slate-400 uppercase mb-2">Teclat Matemàtic</div>
+                        <MathKeyboard onInsert={handleKeyboard} />
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen font-sans text-slate-900 bg-slate-50 flex flex-col pb-10">
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm flex-none">
+                        <div className="w-[98%] mx-auto px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-indigo-600 p-2 rounded-lg text-white"><Icon path={icons.function} size={24} /></div>
+                                <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">Laboratori de Funcions</h1><p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Anàlisi Matemàtica Batxillerat</p></div>
+                            </div>
+                            <nav className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 overflow-x-auto">
+                                <button onClick={()=>setTab('func')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='func'?'bg-white text-indigo-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.function} size={16}/> Funcions</button>
+                                <button onClick={()=>setTab('lim')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='lim'?'bg-white text-emerald-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.limit} size={16}/> Límits</button>
+                                <button onClick={()=>setTab('deriv')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='deriv'?'bg-white text-rose-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.derivative} size={16}/> Derivades</button>
+                                <button onClick={()=>setTab('td')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='td'?'bg-white text-rose-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.table} size={16}/> T. Derivades</button>
+                                <button onClick={()=>setTab('integ')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='integ'?'bg-white text-amber-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.integral} size={16}/> Integrals</button>
+                                <button onClick={()=>setTab('ti')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='ti'?'bg-white text-amber-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.table} size={16}/> T. Integrals</button>
+                                <button onClick={()=>setTab('full')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${tab==='full'?'bg-white text-purple-700 shadow-sm':'text-slate-500 hover:text-slate-700'}`}><Icon path={icons.full} size={16}/> Estudi</button>
+                            </nav>
+                        </div>
+                    </header>
+                    <main className="flex-1 w-[98%] mx-auto mt-6 animate-[fadeIn_0.5s] h-full pb-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+                            
+                            {/* LEFT SIDE: INPUTS FOR ALL TABS (EXCEPT TABLES) */}
+                            {tab !== 'td' && tab !== 'ti' && (
+                                <div className="lg:col-span-4 flex flex-col gap-4 h-full">
+                                    <FunctionInput />
+                                </div>
+                            )}
+
+                            {/* RIGHT SIDE: CONTENT */}
+                            <div className={`${(tab === 'td' || tab === 'ti') ? 'lg:col-span-12' : 'lg:col-span-8'} h-full`}>
+                                {tab === 'func' && <FunctionsTab funcMode={funcMode} funcStr={funcStr} pieces={pieces} />}
+                                {tab === 'lim' && <LimitsTab funcMode={funcMode} funcStr={funcStr} pieces={pieces} />} 
+                                {tab === 'deriv' && <DerivTab funcMode={funcMode} funcStr={funcStr} pieces={pieces} />}
+                                {tab === 'td' && <TableDerivTab />}\r
+                                {tab === 'integ' && <IntegralTab funcMode={funcMode} funcStr={funcStr} pieces={pieces} />}
+                                {tab === 'ti' && <TableIntegTab />}
+                                {tab === 'full' && <FullStudyTab funcMode={funcMode} funcStr={funcStr} pieces={pieces} />}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
