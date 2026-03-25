@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Univers de Probabilitat Avançat | ESO & Batxillerat</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap');
+        
+        body { background-color: #f1f5f9; font-family: 'Inter', sans-serif; overflow-x: hidden; font-size: 1.1rem; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .font-math { font-family: 'STIX Two Text', serif; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        .katex-display { margin: 1em 0; overflow-x: auto; padding: 0.5em 0; }
+        
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; }
+            .print-only { display: block !important; }
+            .max-w-7xl { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 20px !important; }
+        }
+
+        .tree-line { stroke: #94a3b8; stroke-width: 2.5; fill: none; transition: all 0.5s ease; stroke-linecap: round; }
+        .tree-node { fill: #fff; stroke: #0ea5e9; stroke-width: 3; }
+        .tree-text { font-size: 14px; font-weight: 800; fill: #1e293b; }
+        
+        .highlight-sky { font-weight: 800; color: #0369a1; background-color: #f0f9ff; padding: 2px 6px; border-radius: 4px; }
+        .highlight-indigo { font-weight: 800; color: #4338ca; background-color: #eef2ff; padding: 2px 6px; border-radius: 4px; }
+        
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .hero-gradient { background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        const Icon = ({ path, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d={path} />
+            </svg>
+        );
+
+        const icons = {
+            prob: "M12 2v20M2 12h20M12 12l8-8M12 12l-8 8M12 12l8 8M12 12l-8-8",
+            calc: "M16 16h.01 M12 16h.01 M8 16h.01 M16 12h.01 M12 12h.01 M8 12h.01 M16 8h.01 M12 8h.01 M8 8h.01 M4 20h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z",
+            book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
+            table: "M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18",
+            brain: "M9.5 2A5 5 0 0 1 12 7 M14.5 2A5 5 0 0 0 12 7 M12 7V12 M12 12L15 15 M12 12L9 15 M12 22V17",
+            chart: "M12 20V10M18 20V4M6 20v-4",
+            globe: "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z M12 2v20 M2 12h20",
+            print: "M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z",
+            stats: "M3 3v18h18 M7 16l3-4 4 2 5-6"
+        };
+
+        const Latex = ({ children, block = false }) => {
+            const containerRef = useRef(null);
+            useEffect(() => {
+                if (window.katex && containerRef.current) {
+                    try {
+                        let content = typeof children === 'string' ? children : String(children);
+                        window.katex.render(content, containerRef.current, { throwOnError: false, displayMode: block });
+                    } catch (e) { containerRef.current.innerText = String(children); }
+                }
+            }, [children, block]);
+            return <span ref={containerRef} />;
+        };
+
+        const formatProb = (p) => parseFloat(p).toFixed(4).replace(/\.?0+$/, "");
+
+        const TreeDiagram = ({ pa, pba, pbanot }) => {
+            const panot = 1 - pa;
+            return (
+                <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl overflow-x-auto flex flex-col items-center">
+                    <svg width="600" height="300" viewBox="0 0 600 300">
+                        <line x1="20" y1="150" x2="150" y2="70" className="tree-line" />
+                        <line x1="20" y1="150" x2="150" y2="230" className="tree-line" />
+                        <line x1="150" y1="70" x2="350" y2="35" className="tree-line" />
+                        <line x1="150" y1="70" x2="350" y2="105" className="tree-line" />
+                        <line x1="150" y1="230" x2="350" y2="195" className="tree-line" />
+                        <line x1="150" y1="230" x2="350" y2="265" className="tree-line" />
+                        <circle cx="20" cy="150" r="8" className="tree-node" fill="#0ea5e9" />
+                        <circle cx="150" cy="70" r="8" className="tree-node" />
+                        <circle cx="150" cy="230" r="8" className="tree-node" />
+                        <circle cx="350" cy="35" r="8" className="tree-node" />
+                        <circle cx="350" cy="105" r="8" className="tree-node" />
+                        <circle cx="350" cy="195" r="8" className="tree-node" />
+                        <circle cx="350" cy="265" r="8" className="tree-node" />
+                        <text x="70" y="100" className="tree-prob text-lg font-black">{pa}</text>
+                        <text x="165" y="75" className="tree-text text-xl">Succés A</text>
+                        <text x="70" y="210" className="tree-prob text-lg font-black">{formatProb(panot)}</text>
+                        <text x="165" y="235" className="tree-text text-xl italic">Contrari A'</text>
+                        <text x="240" y="45" className="tree-prob text-lg font-black">{pba}</text>
+                        <text x="365" y="40" className="tree-text text-xl italic">Succés B</text>
+                        <text x="240" y="205" className="tree-prob text-lg font-black">{pbanot}</text>
+                        <text x="365" y="200" className="tree-text text-xl italic text-rose-600 font-black">Succés B</text>
+                        <text x="430" y="40" className="tree-result text-lg font-mono font-black">P(A ∩ B) = {formatProb(pa*pba)}</text>
+                        <text x="430" y="200" className="tree-result text-lg font-mono font-black">P(A' ∩ B) = {formatProb(panot*pbanot)}</text>
+                    </svg>
+                </div>
+            );
+        };
+
+        const BayesLab = () => {
+            const [pa, setPa] = useState(0.25);
+            const [pba, setPba] = useState(0.9);
+            const [pbanot, setPbanot] = useState(0.05);
+            const panot = 1 - pa;
+            const pb = (pa * pba) + (panot * pbanot);
+            const pab = pb > 0 ? (pa * pba) / pb : 0;
+
+            return (
+                <div className="space-y-12 animate-fadeIn max-w-7xl mx-auto">
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+                        <div className="xl:col-span-4 bg-white p-12 rounded-[4rem] border border-slate-200 shadow-sm space-y-12">
+                            <h3 className="font-black text-slate-900 uppercase text-xs tracking-[0.4em] border-b-2 border-slate-100 pb-6">Controls de l'Experiment</h3>
+                            <div className="space-y-12">
+                                <div><label className="block text-sm font-black text-sky-700 mb-4 uppercase tracking-tighter">Probabilitat Inicial P(A)</label><input type="range" min="0" max="1" step="0.01" value={pa} onChange={e=>setPa(Number(e.target.value))} className="w-full h-3 accent-sky-600 bg-slate-100 rounded-xl appearance-none" /><div className="flex justify-between text-xs font-black text-sky-800 mt-3 italic"><span>Població A</span><span>{pa}</span></div></div>
+                                <div><label className="block text-sm font-black text-indigo-700 mb-4 uppercase tracking-tighter">Eficiència / Versemblança P(B|A)</label><input type="range" min="0" max="1" step="0.01" value={pba} onChange={e=>setPba(Number(e.target.value))} className="w-full h-3 accent-indigo-600 bg-slate-100 rounded-xl appearance-none" /><div className="flex justify-between text-xs font-black text-indigo-800 mt-3 italic"><span>Correctes</span><span>{pba}</span></div></div>
+                                <div><label className="block text-sm font-black text-rose-700 mb-4 uppercase tracking-tighter">Fals Positiu P(B|A')</label><input type="range" min="0" max="1" step="0.01" value={pbanot} onChange={e=>setPbanot(Number(e.target.value))} className="w-full h-3 accent-rose-600 bg-slate-100 rounded-xl appearance-none" /><div className="flex justify-between text-xs font-black text-rose-800 mt-3 italic"><span>Errors</span><span>{pbanot}</span></div></div>
+                            </div>
+                        </div>
+                        <div className="xl:col-span-8 space-y-8"><TreeDiagram pa={pa} pba={pba} pbanot={pbanot} /></div>
+                    </div>
+                    <div className="bg-white p-16 rounded-[5rem] border border-slate-200 shadow-2xl space-y-12">
+                        <h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic border-b-2 pb-6">Logigrama i Procediment Matemàtic</h3>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 text-lg leading-relaxed">
+                            <div className="space-y-6">
+                                <h4 className="font-black text-sky-700 uppercase tracking-[0.2em] text-xs bg-sky-50 px-4 py-2 rounded-xl w-fit">Interseccions (Producte)</h4>
+                                <div className="p-8 bg-slate-50 rounded-[3rem] space-y-6 font-mono border border-slate-100">
+                                    <Latex block>{`P(A \\cap B) = P(A) \\cdot P(B|A) = ${pa} \\cdot ${pba} = ${formatProb(pa*pba)}`}</Latex>
+                                    <Latex block>{`P(A' \\cap B) = P(A') \\cdot P(B|A') = ${formatProb(1-pa)} \\cdot ${pbanot} = ${formatProb((1-pa)*pbanot)}`}</Latex>
+                                </div>
+                            </div>
+                            <div className="space-y-6">
+                                <h4 className="font-black text-indigo-700 uppercase tracking-[0.2em] text-xs bg-indigo-50 px-4 py-2 rounded-xl w-fit">Probabilitat Final (Total)</h4>
+                                <div className="p-8 bg-indigo-50/50 rounded-[3rem] text-center space-y-6 border border-indigo-100">
+                                    <Latex block>{`P(B) = P(A \\cap B) + P(A' \\cap B)`}</Latex>
+                                    <div className="text-5xl font-black text-indigo-900 pt-8 border-t-2 border-indigo-200 mt-6 font-mono tracking-tighter">{formatProb(pb)}</div>
+                                </div>
+                            </div>
+                            <div className="space-y-6">
+                                <h4 className="font-black text-emerald-700 uppercase tracking-[0.2em] text-xs bg-emerald-50 px-4 py-2 rounded-xl w-fit">Deducció (Teorema de Bayes)</h4>
+                                <div className="p-10 bg-slate-900 text-white rounded-[4rem] shadow-2xl relative overflow-hidden group">
+                                    <div className="absolute -top-10 -right-10 opacity-10 group-hover:scale-110 transition-all duration-1000"><Icon path={icons.brain} size={150} /></div>
+                                    <Latex block>{`P(A|B) = \\frac{P(A)P(B|A)}{P(B)}`}</Latex>
+                                    <div className="text-center mt-10">
+                                        <div className="text-7xl font-black text-sky-400 font-mono tracking-tight">{Math.round(pab*1000)/10}%</div>
+                                        <div className="text-xs font-black uppercase tracking-[0.5em] mt-4 text-slate-400 italic">Probabilitat a Posteriori</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const DistributionsCalc = () => {
+             const dists = [
+                 { type: 'D', name: 'Bernoulli', desc: 'Experiment amb dos possibles resultats (èxit/fracàs).', formula: 'P(X=x) = p^x (1-p)^{1-x}', ex: 'Llançament d una moneda on el Cara és 1 (p=0.5). Probabilitat d obtenir Cara: P(X=1) = 0.5^1 * 0.5^0 = 0.5.' },
+                 { type: 'D', name: 'Binomial B(n,p)', desc: 'Suma de n intents Bernoulli independents.', formula: 'P(X=k) = \\binom{n}{k} p^k (1-p)^{n-k}', ex: 'En 10 intents de bàsquet amb p=0.7, prob. de 7 encerts: P(X=7) = \\binom{10}{7} 0.7^7 0.3^3 \\approx 0.2668.' },
+                 { type: 'D', name: 'Poisson (λ)', desc: 'Successos rars segons un interval de temps o espai.', formula: 'P(X=k) = \\frac{\\lambda^k e^{-\\lambda}}{k!}', ex: 'Si n entren 2 persones per min. (λ=2), prob. de 3 en un min: P(X=3) = \\frac{2^3 e^{-2}}{3!} \\approx 0.1804.' },
+                 { type: 'D', name: 'Geomètrica', desc: 'Nombre d assajos fins al primer èxit.', formula: 'P(X=k) = (1-p)^{k-1} p', ex: 'Tirs fins encertar (p=0.2). Prob. d encertar al 4rt tir: P(X=4)=0.8^3 * 0.2 = 0.1024.' },
+                 { type: 'D', name: 'Hipergeomètrica', desc: 'Selecció sense reemplaçament de població finita.', formula: 'P(X=k) = \\frac{\\binom{K}{k}\\binom{N-K}{n-k}}{\\binom{N}{n}}', ex: 'En 50 cartes, hi ha 10 as. Extraiem 5. Prob. de 2 asos: P(X=2) = \\frac{\\binom{10}{2}\\binom{40}{3}}{\\binom{50}{5}}.' },
+                 { type: 'C', name: 'Uniforme (a,b)', desc: 'Tots els valors del rang tenen la mateixa densitat.', formula: 'f(x) = \\frac{1}{b-a}', ex: 'Bus que passa cada 15m. P(Espera < 5m) = 5/15 = 1/3.' },
+                 { type: 'C', name: 'Normal N(μ,σ)', desc: 'La distribució del límit central, forma de campana.', formula: 'Z = \\frac{x-\\mu}{\\sigma}', ex: 'Altura mitjana 170 (σ=10). Prob. altura < 185: Z=(185-170)/10=1.5. Φ(1.5)=0.9332.' },
+                 { type: 'C', name: 'Exponencial (λ)', desc: 'Temps que passa entre esdeveniments Poisson.', formula: 'P(X \\le x) = 1 - e^{-\\lambda x}', ex: 'Temps fins fallada (λ=0.1). Prob. fallada abans de 5h: P(X<5)=1-e^{-0.5} \\approx 0.3935.' },
+                 { type: 'C', name: 't de Student', desc: 'S utilitza per estimar mitjanes amb mostres petites.', formula: 't_{n-1}', ex: 'Validació d hipòtesis amb 15 dades d una mostra on se ignora la variància real.' }
+             ];
+
+             return (
+                <div className="max-w-7xl mx-auto space-y-20 animate-fadeIn">
+                    <div className="text-center space-y-6">
+                        <h2 className="text-6xl font-black text-slate-900 tracking-tighter uppercase italic">Atlas de Distribucions</h2>
+                        <p className="text-xl text-slate-500 font-math italic max-w-3xl mx-auto">Compendi exhaustiu des de variables discretes (recomptes) fins a les contínues (densitats).</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        {dists.map((d, i) => (
+                            <div key={i} className={`p-10 rounded-[3.5rem] bg-white border shadow-xl flex flex-col justify-between ${d.type === 'D' ? 'border-sky-100' : 'border-indigo-100 scale-[1.02]'}`}>
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="text-2xl font-black text-slate-800 tracking-tight italic">{d.name}</h4>
+                                        <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase ${d.type === 'D' ? 'bg-sky-50 text-sky-700' : 'bg-indigo-50 text-indigo-700'}`}>{d.type === 'D' ? 'Discreta' : 'Contínua'}</span>
+                                    </div>
+                                    <p className="text-slate-600 font-medium leading-relaxed italic">{d.desc}</p>
+                                    <div className="p-6 bg-slate-50 rounded-2xl text-center"><Latex block>{d.formula}</Latex></div>
+                                </div>
+                                <div className="mt-8 p-8 bg-emerald-50 rounded-[2.5rem] border border-emerald-100">
+                                    <p className="text-[10px] font-black text-emerald-700 uppercase mb-4 tracking-widest">Exemple Resolt:</p>
+                                    <p className="font-math text-lg mb-6 leading-relaxed italic text-emerald-900">{d.ex}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+             );
+        };
+
+        const ContingencyTable = () => {
+             const [v, setV] = useState([70, 30, 15, 85]);
+             const refresh = () => setV([Math.round(Math.random()*120), Math.round(Math.random()*80), Math.round(Math.random()*60), Math.round(Math.random()*150)]);
+             
+             return (
+                 <div className="max-w-7xl mx-auto space-y-16 animate-fadeIn pb-20">
+                     <div className="bg-white p-16 rounded-[4rem] border border-slate-200 shadow-2xl flex flex-col lg:flex-row gap-16">
+                         <div className="flex-1 space-y-10">
+                             <h3 className="text-5xl font-black text-slate-900 tracking-tighter uppercase italic">Taules de Contingència</h3>
+                             <div className="p-10 bg-sky-50 rounded-[3rem] border border-sky-100 space-y-6">
+                                 <h4 className="text-xl font-black text-sky-900 underline decoration-4 decoration-sky-300 underline-offset-8 mb-6">Quan i com s'apliquen?</h4>
+                                 <p className="text-lg leading-relaxed text-sky-800 italic">S usen quan tenim <span className="highlight-sky">dades creuades</span> de dues variables qualitatives (Ex: Sexe i Tipus de Vot). Són l eina definitiva per respondre: "L estat de la variable A influeix en la probabilitat de la B?"</p>
+                                 <ul className="text-sm space-y-4 list-disc pl-6 text-sky-900 font-bold opacity-80">
+                                     <li>Detecció d Independència: Si <Latex>{`P(A|B) = P(A)`}</Latex></li>
+                                     <li>Càlcul de Marginals: Sumant files o columnes.</li>
+                                     <li>Anàlisi de Conjuntes: L intersecció directa a la graella.</li>
+                                 </ul>
+                             </div>
+                             <button onClick={refresh} className="px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-indigo-100 hover:scale-[1.03] transition-all">Generar Nous Valors</button>
+                         </div>
+                         <div className="w-full lg:w-[650px] bg-white p-10 rounded-[4rem] shadow-inner border border-slate-100 flex items-center justify-center">
+                             <table className="w-full border-separate border-spacing-2 font-mono text-xs">
+                                 <thead><tr><th></th><th className="p-5 font-black uppercase tracking-widest text-slate-400">Succés X</th><th className="p-5 font-black uppercase tracking-widest text-slate-400">Succés Y</th><th className="p-5 font-black text-indigo-600 italic">Marginal</th></tr></thead>
+                                 <tbody>
+                                     <tr><td className="p-5 font-black bg-slate-50 rounded-2xl uppercase">Factor A</td><td className="p-5 border-2 rounded-2xl text-center font-black text-xl">{v[0]}</td><td className="p-5 border-2 rounded-2xl text-center font-black text-xl">{v[1]}</td><td className="p-5 bg-indigo-50 text-center font-black rounded-2xl text-xl text-indigo-900">{v[0]+v[1]}</td></tr>
+                                     <tr><td className="p-5 font-black bg-slate-50 rounded-2xl uppercase">Factor B</td><td className="p-5 border-2 rounded-2xl text-center font-black text-xl">{v[2]}</td><td className="p-5 border-2 rounded-2xl text-center font-black text-xl">{v[3]}</td><td className="p-5 bg-indigo-50 text-center font-black rounded-2xl text-xl text-indigo-900">{v[2]+v[3]}</td></tr>
+                                     <tr className="bg-slate-900 text-white"><td className="p-5 font-black rounded-2xl uppercase italic">Totals</td><td className="p-5 text-center font-black text-xl">{v[0]+v[2]}</td><td className="p-5 text-center font-black text-xl">{v[1]+v[3]}</td><td className="p-5 text-center font-black text-xl border-l border-white/20 bg-emerald-600 rounded-2xl">{v[0]+v[1]+v[2]+v[3]}</td></tr>
+                                 </tbody>
+                             </table>
+                         </div>
+                     </div>
+                 </div>
+             );
+        };
+
+        const ExerciseGenerator = () => {
+             const [problem, setProblem] = useState(null); const [show, setShow] = useState(false);
+             const gen = () => {
+                 const types = ['Laplace', 'Total', 'Bayes']; const t = types[Math.floor(Math.random()*3)];
+                 if(t==='Laplace') setProblem({ t, q: 'En una baralla de 40 cartes, quina és la probabilitat de no treure cap rei?', s: 'Casos possibles 40. Casos favorables (sense reis) 36. P(No Rei) = 36/40 = 0.9.' });
+                 else if(t==='Total') setProblem({ t, q: 'Diagnòstic mèdic: 20% població real malalta amb p(+) de 0.9. 80% sans amb fals p(+) de 0.1. Probabilitat absoluta de (+) ?', s: 'P(+) = 0.2*0.9 + 0.8*0.1 = 0.18 + 0.08 = 0.26.' });
+                 else setProblem({ t, q: 'De l exercici anterior, si dones (+), quina és la probabilitat real d estar malalt?', s: 'P(M|+) = (0.2*0.9) / 0.26 = 0.18/0.26 \\approx 0.6923.' });
+                 setShow(false);
+             };
+             useEffect(()=>gen(), []);
+             return (
+                 <div className="max-w-5xl mx-auto space-y-12 animate-fadeIn bg-white p-16 rounded-[4rem] border shadow-2xl border-t-[16px] border-slate-900">
+                     {problem && <div className="space-y-12">
+                         <div className="flex justify-between items-center"><span className="text-xs bg-slate-100 px-6 py-2 rounded-xl font-black uppercase text-slate-500 tracking-widest leading-none">Problema Especial de {problem.t}</span><button onClick={gen} className="text-xs hover:text-sky-600 transition-colors font-black uppercase text-slate-300 tracking-tighter italic">Re-Generar Repte</button></div>
+                         <h2 className="text-4xl font-math leading-tight text-slate-800 text-center italic border-b border-slate-50 pb-12 px-10">{problem.q}</h2>
+                         <button onClick={()=>setShow(!show)} className="w-full py-8 bg-slate-900 text-white rounded-[3rem] font-black uppercase tracking-[0.4em] text-xl shadow-2xl hover:bg-black transition-all">{show ? 'Amagar Solució' : 'Veure Resolució Integral'}</button>
+                         {show && <div className="p-16 bg-emerald-50 rounded-[5rem] text-center border-2 border-emerald-100 shadow-inner"><div className="text-3xl font-math italic text-emerald-900 font-bold leading-relaxed"><Latex block>{problem.s}</Latex></div></div>}
+                     </div>}
+                 </div>
+             );
+        };
+
+        const StatisticsFoundations = () => {
+             const [trials, setTrials] = useState(0); const [heads, setHeads] = useState(0); const [log, setLog] = useState([]);
+             const sim = (n) => {
+                 let h=heads, t=trials; for(let i=0; i<n; i++) { if(Math.random()<0.5) h++; t++; }
+                 setHeads(h); setTrials(t); setLog(prev => [...prev.slice(-149), {t, f: h/t}]);
+             };
+             return (
+                 <div className="max-w-7xl mx-auto space-y-16 animate-fadeIn py-16">
+                     <div className="bg-white p-16 rounded-[5rem] border-2 border-slate-100 shadow-3xl space-y-16">
+                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
+                             <div className="space-y-12">
+                                 <h3 className="text-6xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Fonaments de l Estadística</h3>
+                                 <div className="space-y-10">
+                                     <div className="space-y-6">
+                                         <h4 className="text-2xl font-black text-emerald-700 bg-emerald-50 px-6 py-2 rounded-2xl w-fit">1. Llei dels Grans Nombres</h4>
+                                         <p className="text-xl leading-relaxed text-slate-600 font-medium italic">"A mesura que l experiment es repeteix, el caos individual d un sol llançament es transforma en l ordre previsible de la probabilitat teòrica."</p>
+                                         <p className="text-lg text-slate-500 font-math italic">Exemple: Si llancem un dau milers de cops, la mitjana acabarà sent exactament 3.5, malgrat cada tir sigui imprevisible.</p>
+                                     </div>
+                                     <div className="space-y-6">
+                                         <h4 className="text-2xl font-black text-indigo-700 bg-indigo-50 px-6 py-2 rounded-2xl w-fit">2. Teorema Central del Límit</h4>
+                                         <p className="text-xl leading-relaxed text-slate-600 font-medium italic">"La suma de molts factors independents produeix una campana de Gauss, per complex que sigui cada factor inicial."</p>
+                                         <p className="text-lg text-slate-500 font-math italic font-bold">És l explicació de perquè la natura odia els extrems: la majoria de gent està a la mitjana.</p>
+                                     </div>
+                                 </div>
+                                 <div className="flex gap-6 items-center">
+                                     <button onClick={()=>sim(1000)} className="px-12 py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-sm uppercase shadow-2xl hover:bg-emerald-700 transition-all tracking-[0.2em]">+1000 Iteracions</button>
+                                     <button onClick={()=>{setTrials(0);setHeads(0);setLog([]);}} className="p-4 rounded-full border border-slate-200 text-slate-400 hover:text-rose-600 transition-all"><Icon path={icons.reset} size={20} /></button>
+                                 </div>
+                             </div>
+                             <div className="bg-white p-10 rounded-[4rem] border-4 border-slate-50 shadow-inner flex flex-col justify-end h-[550px] relative">
+                                 <div className="absolute top-10 left-10 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Monitor de Convergència Activa</div>
+                                 <div className="flex-1 flex items-end gap-[1px] relative mb-10">
+                                     <div className="absolute w-full h-[50%] border-t-2 border-emerald-500 border-dashed opacity-30 bottom-[50%] z-0"></div>
+                                     {log.map((p, i) => (
+                                         <div key={i} className="flex-1 bg-emerald-500 rounded-t-sm transition-all duration-700" style={{height: `${p.f * 100}%`, opacity: 0.1+(i/log.length)*0.9}}></div>
+                                     ))}
+                                 </div>
+                                 <div className="flex justify-between items-center text-xs font-mono font-black border-t pt-8 text-slate-600 italic">
+                                     <span className="uppercase tracking-[0.3em]">Mida n = {trials}</span>
+                                     <span className="text-emerald-700 text-xl font-black">{trials > 0 ? (heads/trials).toFixed(6) : "0.000"}</span>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             );
+        };
+
+        const TheoryAmplify = () => (
+             <div className="max-w-6xl mx-auto py-12 space-y-24 animate-fadeIn font-math leading-[1.8] text-slate-800">
+                 <section className="bg-white p-16 rounded-[5rem] shadow-xl border border-slate-100 space-y-16">
+                     <h2 className="text-5xl font-black text-slate-900 tracking-tighter italic border-b-2 pb-8">Compendi de Teoria Fonamental</h2>
+                     <div className="space-y-12 text-2xl">
+                         <div className="space-y-6">
+                            <h4 className="font-bold text-sky-900 decoration-4 decoration-sky-300 underline underline-offset-8">1. Axiomàtica de Kolmogorov</h4>
+                            <p>Qualsevol probabilitat ha de complir 3 condicions per ser matemàticament vàlida:</p>
+                            <ul className="list-decimal pl-10 space-y-4 pt-6 text-xl italic font-bold">
+                                <li>L absència de probabilitat negativa: <Latex>{`P(A) \\ge 0`}</Latex></li>
+                                <li>L esdeveniment cert val la unitat: <Latex>{`P(\\Omega) = 1`}</Latex></li>
+                                <li>Additivitat en successos separats: <Latex>{`P(A \\cup B) = P(A) + P(B)`}</Latex></li>
+                            </ul>
+                         </div>
+                         <div className="pt-16 border-t space-y-8">
+                             <h4 className="font-bold text-indigo-900 decoration-4 decoration-indigo-300 underline underline-offset-8">2. Teorema de la Probabilitat Total</h4>
+                             <p>Consisteix en trobar la probabilitat final d un succés recorrent totes les realitats possibles d un fenomen seqüencial.</p>
+                             <Latex block>{`P(B) = P(A_1)P(B|A_1) + P(A_2)P(B|A_2) + \\dots + P(A_n)P(B|A_n)`}</Latex>
+                             <div className="p-10 bg-slate-50 rounded-[3rem] border border-slate-100 flex items-center justify-center italic text-sm">
+                                 ⚠️ Recomanació: Dibuixar un <strong>Diagrama d Arbre</strong> per visualitzar cada sumant d aquesta fórmula.
+                             </div>
+                         </div>
+                     </div>
+                 </section>
+             </div>
+        );
+
+        const CasesReals = () => {
+             const list = [
+                 { t: 'Monty Hall', d: 'Paradoxa de les portes i el canvi de porta.', s: 'Canviar és millor. El presentador sap on és el cotxe i al obrir la porta buida, "empeny" el 2/3 de probabilitat a la porta no triada inicialment.', f: 'P(Canvi) = 2/3' },
+                 { t: 'Fals Positiu', d: 'Tests diagnòstics en malalties rares.', s: 'En malalties d 1/1000, un test de 99% falla més que un malalt real. Per això calen segones opinions i tests més rics en dades.', f: 'P(M|+) < 10\\%' },
+                 { t: 'Filtre de Spam', d: 'Com detecta el correu que és brossa?', s: 'Aplica el pes bayesià: si certa paraula surt en el 90% del spam i en l 1% del bo, la probabilitat de ser spam puja exponencialment.', f: 'Score = \\prod P(w_i | S)' },
+                 { t: 'ADN Forense', d: 'La fal·làcia de l acusador en judicis.', s: 'Que la mostra sigui d 1 en 1milió no significa que el sospitós sigui culpable l 99.999% de cops: pot haver 10 persones iguals en una ciutat de 10 milions.', f: 'P(H|Match)' }
+             ];
+             return (
+                 <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 animate-fadeIn pb-20">
+                     {list.map((c, i) => (
+                         <div key={i} className="bg-white p-12 rounded-[4rem] border shadow-2xl flex flex-col justify-between hover:scale-[1.01] transition-all">
+                             <div className="space-y-6">
+                                 <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter uppercase">{c.t}</h3>
+                                 <p className="text-xl text-slate-500 font-math italic border-b-2 pb-6">{c.d}</p>
+                                 <div className="bg-emerald-50 p-8 rounded-[3rem] border border-emerald-100 italic font-math text-xl leading-relaxed text-emerald-900 overflow-hidden">
+                                     <span className="block text-[10px] uppercase font-black tracking-widest text-emerald-600 mb-4">Anàlisi de Conclusió:</span>
+                                     {c.s}
+                                 </div>
+                             </div>
+                             <div className="mt-8 text-center bg-slate-900 py-4 rounded-3xl text-white font-mono shadow-xl"><Latex>{c.f}</Latex></div>
+                         </div>
+                     ))}
+                 </div>
+             );
+        };
+
+        const App = () => {
+            const [view, setView] = useState('lab');
+            return (
+                <div className="min-h-screen flex flex-col pb-20">
+                    <header className="bg-white/90 backdrop-blur-3xl border-b border-slate-200 sticky top-0 z-50 no-print">
+                        <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-10">
+                            <div className="flex items-center gap-5"><div className="hero-gradient p-4 rounded-3xl text-white shadow-3xl rotate-3"><Icon path={icons.prob} size={32} /></div><div><h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Prob <span className="text-sky-600">Alquímia</span></h1><p className="text-[11px] text-slate-400 font-black uppercase tracking-[0.4em] mt-2 italic">Gemma de Probabilitat PRO</p></div></div>
+                            <nav className="flex bg-slate-100/50 p-2 rounded-3xl border border-slate-200 overflow-x-auto scrollbar-hide">
+                                {[
+                                    { id: 'lab', name: 'Investigació', icon: icons.calc },
+                                    { id: 'tables', name: 'Taules', icon: icons.table },
+                                    { id: 'dist', name: 'Catàleg Dists', icon: icons.stats },
+                                    { id: 'exercises', name: 'Gimnàs Reptes', icon: icons.brain },
+                                    { id: 'cases', name: 'Casos Reals', icon: icons.globe },
+                                    { id: 'theory', name: 'Arxiu Teoria', icon: icons.book },
+                                    { id: 'sim', name: 'Simulació', icon: icons.chart }
+                                ].map(item => (
+                                    <button key={item.id} onClick={() => setView(item.id)} className={`px-5 py-4 rounded-2xl text-[11px] font-black flex items-center justify-center gap-3 transition-all whitespace-nowrap ${view === item.id ? 'bg-white text-sky-800 shadow-2xl ring-2 ring-slate-100' : 'text-slate-500 hover:text-slate-900 uppercase'}`}><Icon path={item.icon} size={16} /> {item.name.toUpperCase()}</button>
+                                ))}
+                            </nav>
+                            <button onClick={()=>window.print()} className="bg-slate-900 text-white p-4.5 rounded-3xl shadow-2xl hover:bg-black transition-all"><Icon path={icons.print} size={24} /></button>
+                        </div>
+                    </header>
+                    <main className="flex-1 max-w-7xl mx-auto w-full p-6 space-y-24 mt-16">
+                        {view === 'lab' && <BayesLab />}
+                        {view === 'tables' && <ContingencyTable />}
+                        {view === 'dist' && <DistributionsCalc />}
+                        {view === 'exercises' && <ExerciseGenerator />}
+                        {view === 'cases' && <CasesReals />}
+                        {view === 'theory' && <TheoryAmplify />}
+                        {view === 'sim' && <StatisticsFoundations />}
+                    </main>
+                    <footer className="max-w-7xl mx-auto w-full px-6 mt-20 text-center no-print border-t border-slate-200 pt-12"><p className="text-slate-400 text-[11px] uppercase font-black tracking-[0.7em] italic">Plataforma Educativa de Probabilitat Avançada • ESO & Batxillerat</p></footer>
+                </div>
+            );
+        };
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
