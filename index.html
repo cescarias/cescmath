@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ca" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Laboratoris de Matemàtiques</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <script src="apps_data.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Outfit', 'sans-serif'],
+                    },
+                    animation: {
+                        'blob': 'blob 7s infinite',
+                        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        fadeInUp: {
+                            '0%': { opacity: 0, transform: 'translateY(20px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: white; min-height: 100vh; overflow-x: hidden; }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Loading spinner */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="relative antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Animaciones Background Abstracto -->
+    <div class="fixed inset-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animation-blob"></div>
+        <div class="absolute top-0 -right-4 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animation-blob animation-delay-2000"></div>
+        <div class="absolute -bottom-8 left-20 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animation-blob animation-delay-4000"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        
+        <!-- Header -->
+        <header class="text-center mb-16 animate-fade-in-up">
+            <h1 class="font-heading text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 mb-4 tracking-tight drop-shadow-sm">
+                Laboratoris Virtuals
+            </h1>
+            <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto font-light">
+                Gestor integrat d'aplicacions interactives per a l'ensenyament i aprenentatge de Matemàtiques.
+            </p>
+        </header>
+
+        <!-- Loader State -->
+        <div id="loader-container" class="flex flex-col items-center justify-center py-20 hidden">
+            <div class="loader mb-4"></div>
+            <p class="text-slate-400 animate-pulse">Escanejant aplicacions...</p>
+        </div>
+
+        <!-- Mensaje Error -->
+        <div id="error-container" class="hidden flex flex-col items-center justify-center py-20 text-red-400">
+            <i class="fas fa-exclamation-triangle text-5xl mb-4 text-red-500"></i>
+            <h2 class="text-xl font-bold mb-2">Dades no trobades</h2>
+            <p class="text-slate-400 text-center max-w-md">No s'ha trobat l'arxiu <code>apps_data.js</code>. Si us plau, executa l'arxiu <code class="bg-slate-800 px-2 py-1 rounded text-white text-sm">actualizar.bat</code> primer per generar-lo.</p>
+        </div>
+
+        <!-- Contenedor Grid Apps -->
+        <div id="apps-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden">
+            <!-- Renderizado Dinámico mediante JS -->
+        </div>
+
+    </div>
+
+    <!-- Script de lógica -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = document.getElementById('apps-grid');
+            const errorContainer = document.getElementById('error-container');
+
+            // En lugar de fetch, usamos window.APPS_DATA
+            if (typeof window.APPS_DATA === 'undefined') {
+                errorContainer.classList.remove('hidden');
+                return;
+            }
+            
+            grid.classList.remove('hidden');
+            const data = window.APPS_DATA;
+
+            if (data.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full flex flex-col items-center justify-center py-20 text-slate-400">
+                        <i class="fas fa-folder-open text-5xl mb-4 opacity-50"></i>
+                        <p class="text-lg">No s'han trobat cap aplicacions.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Por cada App generada
+            data.forEach((app, index) => {
+                const delay = index * 0.1; // Efecto cascada
+
+                // Crear Card
+                const card = document.createElement('a');
+                card.href = app.main_file;
+                card.className = "group glass-card rounded-2xl p-6 flex flex-col items-start justify-between cursor-pointer animate-fade-in-up hover:bg-slate-800/80";
+                card.style.animationDelay = `${delay}s`;
+                
+                card.innerHTML = `
+                    <div class="w-full">
+                        <div class="w-14 h-14 rounded-xl mb-6 shadow-lg flex items-center justify-center bg-gradient-to-br ${app.color} text-white">
+                            <i class="${app.icon} text-2xl group-hover:scale-110 transition-transform duration-300"></i>
+                        </div>
+                        <h3 class="font-heading text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">${app.name}</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed mb-4">${app.description}</p>
+                    </div>
+                    <div class="w-full flex items-center text-sm font-medium text-blue-400 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                        <span>Obrir aplicació</span>
+                        <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                    </div>
+                    
+                    <!-- Etiqueta oculta con nombre de la carpeta -->
+                    <div class="absolute top-4 right-4 bg-slate-800/80 text-xs text-slate-500 px-2 py-1 rounded border border-slate-700 font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+                        /${app.folder}
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        });
+    </script>
+</body>
+</html>
